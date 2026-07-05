@@ -15,6 +15,7 @@ export type {
   RecallOptions,
   StoreContract,
 } from "./contract.ts";
+export { DEFAULT_RANKING, termsFromText } from "./recall.ts";
 export { SCHEMA_VERSION } from "./storage/schema.ts";
 export { ulid } from "./storage/ulid.ts";
 export { Store, type StoreOptions } from "./store.ts";

@@ -81,8 +81,8 @@ cheap.
 |---|---|
 | 0 Go contract | superseded 2026-07-05 |
 | 0.5 pivot + design | in review (this PR) |
-| 1 spine | in review (PR #3) |
-| 2 recall | not started |
+| 1 spine | DONE (PR #3, merged) |
+| 2 recall | in review (PR #4) |
 | 3 consent gate | not started |
 | 4 lifecycle | not started |
 | 5 lineage + doctor | not started |

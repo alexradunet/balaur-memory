@@ -6,7 +6,10 @@
  */
 
 import { join } from "node:path";
+import type { RecallOptions } from "./contract.ts";
 import { rebuildFts } from "./indexdb/fts.ts";
+import * as vectors from "./indexdb/vectors.ts";
+import * as recallMod from "./recall.ts";
 import * as spine from "./spine.ts";
 import type { OpenDb } from "./storage/adapter.ts";
 import { openBunDb } from "./storage/bun.ts";
@@ -105,6 +108,29 @@ export class Store {
 
   touch(id: NodeId): void {
     spine.touch(this.guard(), id);
+  }
+
+  // --- recall (Phase 2 scope; SCHEMA.md I2) ---
+
+  /** Ranked, surfacing-filtered retrieval; vector fusion when a host-embedded
+   * query vector is supplied. Deterministic without one — not a degraded mode. */
+  recall(terms: readonly string[], opts?: RecallOptions): Node[] {
+    return recallMod.recall(this.guard(), terms, opts);
+  }
+
+  /** Cross-type recall over all active, surfaceable knowledge. */
+  search(terms: readonly string[], limit?: number): Node[] {
+    return recallMod.search(this.guard(), terms, limit);
+  }
+
+  /** Maintain the vector sidecar — host-computed vectors only (vectors in,
+   * never models). Keyed by (node id, model identity). */
+  putVector(id: NodeId, model: string, vec: Float32Array): void {
+    vectors.putVector(this.guard().idx, id, model, vec);
+  }
+
+  deleteVectors(model?: string): void {
+    vectors.deleteVectors(this.guard().idx, model);
   }
 
   // --- index maintenance (I13) ---

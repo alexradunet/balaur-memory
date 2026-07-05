@@ -29,9 +29,18 @@ type Step = {
   [key: string]: unknown;
 };
 
+interface RecallSpec {
+  terms?: string[];
+  type?: string;
+  limit?: number;
+  model?: string;
+  queryVector?: number[];
+}
+
 type Expect =
   | { bound: string; equals?: unknown; matches?: string }
   | { sql: string; params?: unknown[]; equals: unknown }
+  | { recall: RecallSpec; titles?: string[]; titlesInOrder?: string[] }
   | { neighborhood: string; titlesEqual: string[] };
 
 const DIR = join(import.meta.dir);
@@ -51,7 +60,7 @@ for (const file of readdirSync(DIR).filter((f) => f.endsWith(".scenario.json")))
     test(scenario.name, () => {
       const dir = mkdtempSync(join(tmpdir(), "bm-conf-"));
       let t = Date.parse(scenario.clock);
-      const store = Store.open({ dir, now: () => new Date(++t) });
+      let store = Store.open({ dir, now: () => new Date(++t) });
       const bindings = new Map<string, Node>();
 
       try {
@@ -87,6 +96,21 @@ for (const file of readdirSync(DIR).filter((f) => f.endsWith(".scenario.json")))
                   step["to"] as Parameters<Store["setSurfacing"]>[1],
                 );
                 return undefined;
+              case "putVector":
+                store.putVector(
+                  resolveRef(bindings, step["id"] as string) as Node["id"],
+                  step["model"] as string,
+                  new Float32Array(step["vec"] as number[]),
+                );
+                return undefined;
+              case "rebuildIndex":
+                store.rebuildIndex();
+                return undefined;
+              case "reopenWithoutIndex":
+                store.close();
+                rmSync(join(dir, "index.db"), { force: true });
+                store = Store.open({ dir, now: () => new Date(++t) });
+                return undefined;
               default:
                 throw new Error(`unknown op ${step.op}`);
             }
@@ -117,6 +141,20 @@ for (const file of readdirSync(DIR).filter((f) => f.endsWith(".scenario.json")))
               > | null;
               const first = row === null ? null : Object.values(row)[0];
               expect(first).toEqual(ex.equals);
+            } else if ("recall" in ex) {
+              const spec = ex.recall;
+              const got = store
+                .recall(spec.terms ?? [], {
+                  ...(spec.type !== undefined ? { type: spec.type } : {}),
+                  ...(spec.limit !== undefined ? { limit: spec.limit } : {}),
+                  ...(spec.model !== undefined ? { model: spec.model } : {}),
+                  ...(spec.queryVector !== undefined
+                    ? { queryVector: new Float32Array(spec.queryVector) }
+                    : {}),
+                })
+                .map((n) => n.title);
+              if (ex.titlesInOrder !== undefined) expect(got).toEqual(ex.titlesInOrder);
+              if (ex.titles !== undefined) expect([...got].sort()).toEqual([...ex.titles].sort());
             } else {
               const node = bindings.get(ex.neighborhood);
               if (!node) throw new Error(`unbound ${ex.neighborhood}`);

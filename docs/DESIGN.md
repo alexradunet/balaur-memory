@@ -62,7 +62,7 @@ score(node) = bm25 × recency × importanceBoost × reinforcement
   reinforcement  = 1 + 0.2·ln(1 + use_count)
 ```
 
-With a query vector present: RRF fusion, `Σ 1/(60 + rank_i)` across the
+(The implementation floors recency at 0.05 so a perfect lexical match is demoted by age, never erased.) With a query vector present: RRF fusion, `Σ 1/(60 + rank_i)` across the
 lexical and cosine rankings. Constants live in one exported `RankingConfig`
 with these defaults; hosts may tune, conformance pins the defaults.
 

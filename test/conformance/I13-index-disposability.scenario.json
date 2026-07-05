@@ -1,0 +1,24 @@
+{
+  "name": "I13: deleting index.db loses nothing — rebuild restores recall exactly",
+  "invariants": ["I13"],
+  "clock": "2026-07-05T12:00:00.000Z",
+  "steps": [
+    { "op": "registerType", "name": "note", "bornStatus": "active" },
+    {
+      "op": "createNode",
+      "as": "x1",
+      "input": { "type": "note", "title": "Xanadu one", "body": "xanadu", "origin": "t" }
+    },
+    {
+      "op": "createNode",
+      "as": "x2",
+      "input": { "type": "note", "title": "Xanadu two", "body": "xanadu plans", "origin": "t" }
+    },
+    { "op": "reopenWithoutIndex" },
+    { "op": "rebuildIndex" }
+  ],
+  "expect": [
+    { "recall": { "terms": ["xanadu"] }, "titles": ["Xanadu one", "Xanadu two"] },
+    { "sql": "SELECT COUNT(*) FROM nodes WHERE type = 'note'", "equals": 2 }
+  ]
+}

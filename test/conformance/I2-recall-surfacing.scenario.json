@@ -1,0 +1,38 @@
+{
+  "name": "I2: ambient recall = active+always; ask only when the title is named; never unreachable",
+  "invariants": ["I2"],
+  "clock": "2026-07-05T12:00:00.000Z",
+  "steps": [
+    { "op": "registerType", "name": "note", "bornStatus": "active" },
+    {
+      "op": "createNode",
+      "as": "a",
+      "input": { "type": "note", "title": "Alpine trip", "body": "the zaffre mountains", "origin": "t" }
+    },
+    {
+      "op": "createNode",
+      "as": "ask1",
+      "input": { "type": "note", "title": "Zaffre ledger", "body": "numbers", "origin": "t" }
+    },
+    { "op": "setSurfacing", "id": "@ask1.id", "to": "ask" },
+    {
+      "op": "createNode",
+      "as": "ask2",
+      "input": { "type": "note", "title": "Hidden thing", "body": "zaffre secrets", "origin": "t" }
+    },
+    { "op": "setSurfacing", "id": "@ask2.id", "to": "ask" },
+    {
+      "op": "createNode",
+      "as": "nev",
+      "input": { "type": "note", "title": "Zaffre vault", "body": "zaffre", "origin": "t" }
+    },
+    { "op": "setSurfacing", "id": "@nev.id", "to": "never" },
+    {
+      "op": "createNode",
+      "as": "arch",
+      "input": { "type": "note", "title": "Old zaffre", "body": "zaffre", "origin": "t" }
+    },
+    { "op": "transition", "id": "@arch.id", "to": "archived" }
+  ],
+  "expect": [{ "recall": { "terms": ["zaffre"] }, "titles": ["Alpine trip", "Zaffre ledger"] }]
+}
