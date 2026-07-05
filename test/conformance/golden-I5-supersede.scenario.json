@@ -1,0 +1,48 @@
+{
+  "name": "golden I5: approve_superseding runs activate, archive, supersedes edge, audit — in order",
+  "invariants": ["I5", "I2"],
+  "clock": "2026-07-05T12:00:00.000Z",
+  "steps": [
+    { "op": "registerType", "name": "memory", "bornStatus": "proposed" },
+    {
+      "op": "propose",
+      "as": "old",
+      "proposal": {
+        "type": "memory",
+        "title": "Lives in Brasov",
+        "body": "moved there in 2019, lives near the center",
+        "importance": 4,
+        "origin": "turn:t1"
+      }
+    },
+    { "op": "decide", "id": "@old.id", "decision": { "kind": "approve" } },
+    {
+      "op": "propose",
+      "as": "new",
+      "proposal": {
+        "type": "memory",
+        "title": "Lives in Cluj",
+        "body": "moved to Cluj, lives there now",
+        "importance": 4,
+        "origin": "turn:t8"
+      }
+    },
+    {
+      "op": "decide",
+      "id": "@new.id",
+      "decision": { "kind": "approve_superseding", "supersedes": "@old.id" }
+    }
+  ],
+  "expect": [
+    { "sql": "SELECT status FROM nodes WHERE id = ?", "params": ["@new.id"], "equals": "active" },
+    { "sql": "SELECT status FROM nodes WHERE id = ?", "params": ["@old.id"], "equals": "archived" },
+    {
+      "sql": "SELECT COUNT(*) FROM edges WHERE source = ? AND target = ? AND type = 'supersedes'",
+      "params": ["@new.id", "@old.id"],
+      "equals": 1
+    },
+    { "sql": "SELECT COUNT(*) FROM audit_log WHERE action = 'consent.decide'", "equals": 2 },
+    { "sql": "SELECT COUNT(*) FROM audit_log WHERE action = 'node.transition' AND ok = 1", "equals": 3 },
+    { "recall": { "terms": ["lives"] }, "titles": ["Lives in Cluj"] }
+  ]
+}

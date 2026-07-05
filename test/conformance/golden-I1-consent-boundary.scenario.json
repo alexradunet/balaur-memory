@@ -1,0 +1,53 @@
+{
+  "name": "golden I1: agent writes born proposed, owner writes born active; hints surface",
+  "invariants": ["I1", "I10"],
+  "clock": "2026-07-05T12:00:00.000Z",
+  "steps": [
+    { "op": "registerType", "name": "memory", "bornStatus": "proposed" },
+    { "op": "registerType", "name": "note", "bornStatus": "active" },
+    {
+      "op": "propose",
+      "as": "m1",
+      "proposal": {
+        "type": "memory",
+        "title": "Sister Ana lives in Brasov",
+        "body": "visits every other weekend",
+        "importance": 4,
+        "origin": "turn:t1"
+      }
+    },
+    {
+      "op": "createNode",
+      "as": "o1",
+      "input": { "type": "memory", "title": "Ana prefers window seats", "origin": "owner:manual" }
+    },
+    {
+      "op": "propose",
+      "proposal": { "type": "note", "title": "x", "body": "", "origin": "t" },
+      "expectError": "invalid_transition"
+    },
+    {
+      "op": "propose",
+      "as": "m2",
+      "proposal": {
+        "type": "memory",
+        "title": "Budget is 500 lei monthly",
+        "body": "for eating out",
+        "origin": "turn:t2"
+      }
+    },
+    {
+      "op": "createNode",
+      "as": "o2",
+      "input": { "type": "memory", "title": "budget IS 500 lei   monthly", "origin": "owner:manual" }
+    }
+  ],
+  "expect": [
+    { "bound": "m1.status", "equals": "proposed" },
+    { "bound": "o1.status", "equals": "active" },
+    { "conflicts": "m1", "reasons": ["lexical_overlap"] },
+    { "conflicts": "m2", "reasons": ["title_match"] },
+    { "sql": "SELECT COUNT(*) FROM nodes WHERE status = 'proposed'", "equals": 2 },
+    { "sql": "SELECT COUNT(*) FROM nodes WHERE origin = ''", "equals": 0 }
+  ]
+}

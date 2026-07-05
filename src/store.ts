@@ -6,6 +6,8 @@
  */
 
 import { join } from "node:path";
+import type { Conflict, Decision, EditChange, Outcome, Pending, Proposal } from "./consent.ts";
+import * as consent from "./consent.ts";
 import type { RecallOptions } from "./contract.ts";
 import { rebuildFts } from "./indexdb/fts.ts";
 import * as vectors from "./indexdb/vectors.ts";
@@ -108,6 +110,33 @@ export class Store {
 
   touch(id: NodeId): void {
     spine.touch(this.guard(), id);
+  }
+
+  // --- the consent boundary (Phase 3 scope; SCHEMA.md I1, I4, I5) ---
+
+  /** The write-time AUDN gate: created | merged_pending | exists_active (I4). */
+  propose(p: Proposal): Outcome {
+    return consent.propose(this.guard(), p);
+  }
+
+  /** Park a change to an active consent-gated node without applying it. */
+  proposeEdit(id: NodeId, change: EditChange): void {
+    consent.proposeEdit(this.guard(), id, change);
+  }
+
+  /** Everything awaiting the owner, oldest first, with conflict hints. */
+  pendingQueue(): Pending[] {
+    return consent.pendingQueue(this.guard());
+  }
+
+  /** Apply the owner's verdict; compound verdicts run ordered + audited (I5). */
+  decide(id: NodeId, decision: Decision): Node {
+    return consent.decide(this.guard(), id, decision);
+  }
+
+  /** Advisory duplicate/contradiction hints for one pending item. */
+  conflictsFor(id: NodeId): Conflict[] {
+    return consent.conflictsFor(this.guard(), id);
   }
 
   // --- recall (Phase 2 scope; SCHEMA.md I2) ---

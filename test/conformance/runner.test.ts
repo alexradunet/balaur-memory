@@ -41,6 +41,8 @@ type Expect =
   | { bound: string; equals?: unknown; matches?: string }
   | { sql: string; params?: unknown[]; equals: unknown }
   | { recall: RecallSpec; titles?: string[]; titlesInOrder?: string[] }
+  | { outcome: string; equals: string }
+  | { conflicts: string; reasons: string[] }
   | { neighborhood: string; titlesEqual: string[] };
 
 const DIR = join(import.meta.dir);
@@ -62,6 +64,7 @@ for (const file of readdirSync(DIR).filter((f) => f.endsWith(".scenario.json")))
       let t = Date.parse(scenario.clock);
       let store = Store.open({ dir, now: () => new Date(++t) });
       const bindings = new Map<string, Node>();
+      const outcomes = new Map<string, string>();
 
       try {
         for (const step of scenario.steps) {
@@ -96,6 +99,32 @@ for (const file of readdirSync(DIR).filter((f) => f.endsWith(".scenario.json")))
                   step["to"] as Parameters<Store["setSurfacing"]>[1],
                 );
                 return undefined;
+              case "propose": {
+                const o = store.propose(step["proposal"] as Parameters<Store["propose"]>[0]);
+                if (step.as) outcomes.set(step.as, o.kind);
+                return o.node;
+              }
+              case "proposeEdit":
+                store.proposeEdit(
+                  resolveRef(bindings, step["id"] as string) as Node["id"],
+                  step["change"] as Parameters<Store["proposeEdit"]>[1],
+                );
+                return undefined;
+              case "decide": {
+                const raw = step["decision"] as {
+                  kind: string;
+                  supersedes?: string;
+                  fields?: Record<string, string>;
+                };
+                const decision =
+                  raw.supersedes !== undefined
+                    ? { ...raw, supersedes: resolveRef(bindings, raw.supersedes) }
+                    : raw;
+                return store.decide(
+                  resolveRef(bindings, step["id"] as string) as Node["id"],
+                  decision as Parameters<Store["decide"]>[1],
+                );
+              }
               case "putVector":
                 store.putVector(
                   resolveRef(bindings, step["id"] as string) as Node["id"],
@@ -141,6 +170,14 @@ for (const file of readdirSync(DIR).filter((f) => f.endsWith(".scenario.json")))
               > | null;
               const first = row === null ? null : Object.values(row)[0];
               expect(first).toEqual(ex.equals);
+            } else if ("outcome" in ex) {
+              expect(outcomes.get(ex.outcome)).toBe(ex.equals);
+            } else if ("conflicts" in ex) {
+              const node = bindings.get(ex.conflicts);
+              if (!node) throw new Error(`unbound ${ex.conflicts}`);
+              const reasons: string[] = store.conflictsFor(node.id).map((c) => c.reason);
+              reasons.sort();
+              expect(reasons).toEqual([...ex.reasons].sort());
             } else if ("recall" in ex) {
               const spec = ex.recall;
               const got = store

@@ -335,12 +335,12 @@ export function updateNode(
     ]);
     audit(ctx, "owner", "node.update", id, true, { type: node.type });
     const updated = mustGet(ctx, id);
-    fanOutUpdate(ctx, updated);
+    reindexNode(ctx, updated);
     return updated;
   });
 }
 
-function fanOutUpdate(ctx: Ctx, node: Node): void {
+export function reindexNode(ctx: Ctx, node: Node): void {
   try {
     upsertFts(ctx.idx, {
       id: node.id,
@@ -424,7 +424,7 @@ export function transition(ctx: Ctx, id: NodeId, to: Status): Node {
     ctx.mem.run("UPDATE nodes SET status = ?, updated = ? WHERE id = ?", [to, ctx.now().toISOString(), id]);
     audit(ctx, "owner", "node.transition", id, true, { from: node.status, to });
     const updated = mustGet(ctx, id);
-    fanOutUpdate(ctx, updated); // status gates index membership
+    reindexNode(ctx, updated); // status gates index membership
     return updated;
   });
 }

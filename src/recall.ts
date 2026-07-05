@@ -99,12 +99,12 @@ function matchExpr(terms: readonly string[]): string {
     .join(" OR ");
 }
 
-interface Candidate {
+export interface Candidate {
   id: string;
   rel: number; // -bm25 rank: higher is better, > 0
 }
 
-function lexicalCandidates(
+export function lexicalCandidates(
   ctx: Ctx,
   terms: readonly string[],
   kind: string | undefined,

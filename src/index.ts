@@ -3,6 +3,7 @@
 export type {
   Conflict,
   Decision,
+  EditChange,
   EditEnvelope,
   Outcome,
   Pending,

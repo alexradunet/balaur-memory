@@ -1,0 +1,55 @@
+{
+  "name": "golden I4: the write-time gate routes created / merged_pending / exists_active",
+  "invariants": ["I4"],
+  "clock": "2026-07-05T12:00:00.000Z",
+  "steps": [
+    { "op": "registerType", "name": "memory", "bornStatus": "proposed" },
+    {
+      "op": "propose",
+      "as": "p1",
+      "proposal": {
+        "type": "memory",
+        "title": "Dog is named Rex",
+        "body": "golden retriever",
+        "importance": 3,
+        "origin": "turn:t1"
+      }
+    },
+    {
+      "op": "propose",
+      "as": "p2",
+      "proposal": {
+        "type": "memory",
+        "title": "  dog IS named   rex ",
+        "body": "golden retriever, five years old",
+        "importance": 4,
+        "origin": "turn:t2"
+      }
+    },
+    { "op": "decide", "id": "@p1.id", "decision": { "kind": "approve" } },
+    {
+      "op": "propose",
+      "as": "p3",
+      "proposal": {
+        "type": "memory",
+        "title": "Dog is named Rex",
+        "body": "duplicate attempt",
+        "origin": "turn:t3"
+      }
+    }
+  ],
+  "expect": [
+    { "outcome": "p1", "equals": "created" },
+    { "outcome": "p2", "equals": "merged_pending" },
+    { "outcome": "p3", "equals": "exists_active" },
+    { "bound": "p2.id", "matches": "^" },
+    { "sql": "SELECT COUNT(*) FROM nodes WHERE status = 'proposed'", "equals": 0 },
+    { "sql": "SELECT COUNT(*) FROM nodes WHERE type = 'memory'", "equals": 1 },
+    {
+      "sql": "SELECT body FROM nodes WHERE id = ?",
+      "params": ["@p1.id"],
+      "equals": "golden retriever, five years old"
+    },
+    { "sql": "SELECT importance FROM nodes WHERE id = ?", "params": ["@p1.id"], "equals": 4 }
+  ]
+}
