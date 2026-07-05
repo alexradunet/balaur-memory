@@ -13,14 +13,7 @@ export type EdgeId = string & { readonly __brand: "EdgeId" };
  * merged are terminal (I8). "Forgotten" is honest erasure — content is
  * destroyed, not hidden; suppression is what "quarantined" is for.
  */
-export type Status =
-  | "proposed"
-  | "active"
-  | "archived"
-  | "rejected"
-  | "quarantined"
-  | "forgotten"
-  | "merged";
+export type Status = "proposed" | "active" | "archived" | "rejected" | "quarantined" | "forgotten" | "merged";
 
 /**
  * The third axis besides status and importance: whether an active node may
@@ -67,20 +60,16 @@ export interface Edge {
   readonly created: string;
 }
 
-export const SYSTEM_EDGE_TYPES = [
-  "on_day",
-  "supersedes",
-  "merged_into",
-  "no_match",
-  "derived_from",
-] as const;
+export const SYSTEM_EDGE_TYPES = ["on_day", "supersedes", "merged_into", "no_match", "derived_from"] as const;
 
 /** Registration of a node type in the registry (I1: bornStatus is the consent split). */
 export interface NodeTypeSpec {
   readonly name: string;
   readonly bornStatus: "active" | "proposed";
   /** prop key → shape; empty = any props allowed. */
-  readonly propsSchema?: Readonly<Record<string, { type: "string" | "number" | "boolean"; required?: boolean }>>;
+  readonly propsSchema?: Readonly<
+    Record<string, { type: "string" | "number" | "boolean"; required?: boolean }>
+  >;
   readonly template?: { readonly body?: string; readonly props?: Props };
 }
 

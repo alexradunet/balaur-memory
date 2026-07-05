@@ -1,0 +1,22 @@
+{
+  "name": "I12: every mutation writes exactly one audit row",
+  "invariants": ["I12", "I7"],
+  "clock": "2026-07-05T12:00:00.000Z",
+  "steps": [
+    { "op": "registerType", "name": "note", "bornStatus": "active" },
+    { "op": "createNode", "as": "a", "input": { "type": "note", "title": "ZecretPayloadXq", "origin": "t" } },
+    { "op": "createNode", "as": "b", "input": { "type": "note", "title": "B", "origin": "t" } },
+    { "op": "link", "source": "@a.id", "target": "@b.id" },
+    { "op": "transition", "id": "@a.id", "to": "archived" },
+    { "op": "touch", "id": "@b.id" },
+    { "op": "setSurfacing", "id": "@b.id", "to": "ask" }
+  ],
+  "expect": [
+    { "sql": "SELECT COUNT(*) FROM audit_log WHERE action = 'node.create'", "equals": 3 },
+    { "sql": "SELECT COUNT(*) FROM audit_log WHERE action = 'edge.create'", "equals": 3 },
+    { "sql": "SELECT COUNT(*) FROM audit_log WHERE action = 'node.transition' AND ok = 1", "equals": 1 },
+    { "sql": "SELECT COUNT(*) FROM audit_log WHERE action = 'node.touch'", "equals": 1 },
+    { "sql": "SELECT COUNT(*) FROM audit_log WHERE action = 'node.surfacing'", "equals": 1 },
+    { "sql": "SELECT COUNT(*) FROM audit_log WHERE meta LIKE '%ZecretPayloadXq%'", "equals": 0 }
+  ]
+}

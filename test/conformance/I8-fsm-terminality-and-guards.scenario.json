@@ -1,0 +1,19 @@
+{
+  "name": "I8: guarded targets are unreachable via bare transition",
+  "invariants": ["I8"],
+  "clock": "2026-07-05T12:00:00.000Z",
+  "steps": [
+    { "op": "registerType", "name": "note", "bornStatus": "active" },
+    { "op": "createNode", "as": "a", "input": { "type": "note", "title": "A", "origin": "t" } },
+    { "op": "transition", "id": "@a.id", "to": "rejected", "expectError": "invalid_transition" },
+    { "op": "transition", "id": "@a.id", "to": "forgotten", "expectError": "invalid_transition" },
+    { "op": "transition", "id": "@a.id", "to": "merged", "expectError": "invalid_transition" },
+    { "op": "transition", "id": "@a.id", "to": "archived" },
+    { "op": "transition", "id": "@a.id", "to": "quarantined", "expectError": "invalid_transition" }
+  ],
+  "expect": [
+    { "bound": "a.status", "equals": "active" },
+    { "sql": "SELECT status FROM nodes WHERE id = ?", "params": ["@a.id"], "equals": "archived" },
+    { "sql": "SELECT COUNT(*) FROM audit_log WHERE action = 'node.transition' AND ok = 0", "equals": 4 }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "I1: owner-authored writes are born active, even for consent-gated types",
+  "invariants": ["I1", "I10"],
+  "clock": "2026-07-05T12:00:00.000Z",
+  "steps": [
+    { "op": "registerType", "name": "note", "bornStatus": "active" },
+    { "op": "registerType", "name": "memory", "bornStatus": "proposed" },
+    { "op": "createNode", "as": "n1", "input": { "type": "note", "title": "A note", "origin": "turn:t1" } },
+    {
+      "op": "createNode",
+      "as": "m1",
+      "input": { "type": "memory", "title": "Owner-stated fact", "origin": "turn:t2" }
+    }
+  ],
+  "expect": [
+    { "bound": "n1.status", "equals": "active" },
+    { "bound": "m1.status", "equals": "active" },
+    { "bound": "m1.origin", "equals": "turn:t2" },
+    { "sql": "SELECT COUNT(*) FROM nodes WHERE origin = ''", "equals": 0 }
+  ]
+}

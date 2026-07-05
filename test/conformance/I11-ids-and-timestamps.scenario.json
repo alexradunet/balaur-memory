@@ -1,0 +1,15 @@
+{
+  "name": "I11: ulid ids, ISO-8601 UTC timestamps, schema version recorded",
+  "invariants": ["I11"],
+  "clock": "2026-07-05T12:00:00.000Z",
+  "steps": [
+    { "op": "registerType", "name": "note", "bornStatus": "active" },
+    { "op": "createNode", "as": "a", "input": { "type": "note", "title": "A", "origin": "t" } }
+  ],
+  "expect": [
+    { "bound": "a.id", "matches": "^[0-9abcdefghjkmnpqrstvwxyz]{26}$" },
+    { "bound": "a.created", "matches": "^2026-07-05T12:00:00\\.[0-9]{3}Z$" },
+    { "sql": "SELECT value FROM meta WHERE key = 'schema_version'", "equals": "1" },
+    { "sql": "SELECT COUNT(*) FROM nodes WHERE updated < created", "equals": 0 }
+  ]
+}

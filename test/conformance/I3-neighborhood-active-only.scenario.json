@@ -1,0 +1,15 @@
+{
+  "name": "I3: traversal returns active nodes only",
+  "invariants": ["I3"],
+  "clock": "2026-07-05T12:00:00.000Z",
+  "steps": [
+    { "op": "registerType", "name": "note", "bornStatus": "active" },
+    { "op": "createNode", "as": "a", "input": { "type": "note", "title": "A", "origin": "t" } },
+    { "op": "createNode", "as": "b", "input": { "type": "note", "title": "B", "origin": "t" } },
+    { "op": "createNode", "as": "c", "input": { "type": "note", "title": "C", "origin": "t" } },
+    { "op": "link", "source": "@a.id", "target": "@b.id" },
+    { "op": "link", "source": "@a.id", "target": "@c.id" },
+    { "op": "transition", "id": "@c.id", "to": "archived" }
+  ],
+  "expect": [{ "neighborhood": "a", "titlesEqual": ["B", "2026-07-05"] }]
+}
