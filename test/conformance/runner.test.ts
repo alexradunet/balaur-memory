@@ -48,11 +48,12 @@ type Expect =
   | {
       entityContext: string;
       limit?: number;
+      asOf?: string;
       aliases?: string[];
       peerTitlesInOrder?: string[];
       peerVia?: string[][];
     }
-  | { neighborhood: string; titlesEqual: string[] };
+  | { neighborhood: string; titlesEqual: string[]; asOf?: string };
 
 const DIR = join(import.meta.dir);
 
@@ -97,13 +98,18 @@ for (const file of readdirSync(DIR).filter((f) => f.endsWith(".scenario.json")))
               case "createNode":
                 return store.createNode(step["input"] as Parameters<Store["createNode"]>[0]);
               case "link":
-                store.link(
+                return store.link(
                   (resolveRef(bindings, step["source"] as string) as Node["id"]) ?? ("" as NodeId),
                   resolveRef(bindings, step["target"] as string) as Node["id"],
                   (step["type"] as string | undefined) ?? "links",
                   (step["context"] as string | undefined) ?? "",
+                  step["validity"] as Parameters<Store["link"]>[4],
                 );
-                return undefined;
+              case "closeEdge":
+                return store.closeEdge(
+                  resolveRef(bindings, step["id"] as string) as Parameters<Store["closeEdge"]>[0],
+                  step["until"] as string | undefined,
+                );
               case "transition":
                 return store.transition(
                   resolveRef(bindings, step["id"] as string) as Node["id"],
@@ -277,7 +283,7 @@ for (const file of readdirSync(DIR).filter((f) => f.endsWith(".scenario.json")))
             } else if ("entityContext" in ex) {
               const subject = bindings.get(ex.entityContext);
               if (!subject) throw new Error(`unbound ${ex.entityContext}`);
-              const card = store.entityContext(subject.id, ex.limit);
+              const card = store.entityContext(subject.id, ex.limit, ex.asOf);
               if (ex.aliases !== undefined) expect([...card.aliases]).toEqual(ex.aliases);
               if (ex.peerTitlesInOrder !== undefined)
                 expect(card.peers.map((p) => p.node.title)).toEqual(ex.peerTitlesInOrder);
@@ -289,7 +295,7 @@ for (const file of readdirSync(DIR).filter((f) => f.endsWith(".scenario.json")))
               const node = bindings.get(ex.neighborhood);
               if (!node) throw new Error(`unbound ${ex.neighborhood}`);
               const titles = store
-                .neighborhood(node.id)
+                .neighborhood(node.id, ex.asOf)
                 .map((n) => n.title)
                 .sort();
               expect(titles).toEqual([...ex.titlesEqual].sort());

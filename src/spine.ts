@@ -19,8 +19,10 @@ import {
   normalizeText,
   type Props,
   parseProps,
+  parseStrictIso,
   type Status,
   type Surfacing,
+  SYSTEM_EDGE_TYPES,
 } from "./types.ts";
 
 /** Shared handle the Store façade threads through every spine call. */
@@ -307,16 +309,21 @@ export function mustGet(ctx: Ctx, id: NodeId): Node {
  * (I2 composes with traversal — never means never, reachable only by
  * getNode; review-2 F2), `day` anchors excluded as plumbing (the
  * ambient-recall rule). `ask` neighbors ARE returned: traversal is an
- * owner-facing read of a named subject, not ambient matching. */
-export function neighborhood(ctx: Ctx, id: NodeId): Node[] {
+ * owner-facing read of a named subject, not ambient matching. The world
+ * defaults to NOW (TEMPORAL.md): closed edges drop out of the present;
+ * `asOf` travels — a neighbor counts when some edge is valid at t. */
+export function neighborhood(ctx: Ctx, id: NodeId, asOf?: string): Node[] {
+  const t = asOf !== undefined ? parseStrictIso(asOf, "asOf") : ctx.now().toISOString();
   const rows = ctx.mem.query<NodeRow>(
     `SELECT DISTINCT ${NODE_COLS.split(", ")
       .map((c) => `n.${c}`)
       .join(", ")}
      FROM nodes n
      JOIN edges e ON (e.source = ? AND e.target = n.id) OR (e.target = ? AND e.source = n.id)
-     WHERE n.status = 'active' AND n.surfacing != 'never' AND n.type != 'day'`,
-    [id, id],
+     WHERE n.status = 'active' AND n.surfacing != 'never' AND n.type != 'day'
+       AND (e.valid_from IS NULL OR e.valid_from <= ?)
+       AND (e.valid_until IS NULL OR e.valid_until > ?)`,
+    [id, id, t, t],
   );
   return rows.map(rowToNode);
 }
@@ -397,7 +404,11 @@ interface EdgeRow extends SqlRow {
   type: string;
   context: string;
   created: string;
+  valid_from: string | null;
+  valid_until: string | null;
 }
+
+const EDGE_COLS = "id, source, target, type, context, created, valid_from, valid_until";
 
 function rowToEdge(r: EdgeRow): Edge {
   return {
@@ -407,11 +418,21 @@ function rowToEdge(r: EdgeRow): Edge {
     type: r.type,
     context: r.context,
     created: r.created,
+    validFrom: r.valid_from,
+    validUntil: r.valid_until,
   };
 }
 
+/** World-time validity window on a host edge (TEMPORAL.md). */
+export interface Validity {
+  readonly from?: string;
+  readonly until?: string;
+}
+
 /** Idempotent on (source, target, type): a duplicate returns the existing
- * edge without a second audit row. */
+ * edge without a second audit row — the existing edge's validity wins;
+ * closeEdge is the verb for changing it. Validity is declared, never
+ * inferred (I15): strict ISO only, and system edge types refuse it. */
 export function insertEdge(
   ctx: Ctx,
   source: NodeId,
@@ -419,29 +440,58 @@ export function insertEdge(
   type: string,
   context: string,
   actor: Actor,
+  validity?: Validity,
 ): Edge {
   const edgeType = type.trim() === "" ? "links" : type.trim();
+  let from: string | null = null;
+  let until: string | null = null;
+  if (validity?.from !== undefined) from = parseStrictIso(validity.from, "validity.from");
+  if (validity?.until !== undefined) until = parseStrictIso(validity.until, "validity.until");
+  if (from !== null && until !== null && until <= from)
+    throw new MemoryError("props_invalid", "validity.until must be after validity.from");
+  if ((from !== null || until !== null) && (SYSTEM_EDGE_TYPES as readonly string[]).includes(edgeType))
+    throw new MemoryError("conflict", `system edge type ${JSON.stringify(edgeType)} is timeless (I15)`);
   const id = ulid(ctx.now().getTime());
   const res = ctx.mem.run(
-    `INSERT INTO edges (id, source, target, type, context, created) VALUES (?, ?, ?, ?, ?, ?)
+    `INSERT INTO edges (id, source, target, type, context, created, valid_from, valid_until)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(source, target, type) DO NOTHING`,
-    [id, source, target, edgeType, context, ctx.now().toISOString()],
+    [id, source, target, edgeType, context, ctx.now().toISOString(), from, until],
   );
   if (res.changes === 0) {
     const existing = ctx.mem.get<EdgeRow>(
-      "SELECT id, source, target, type, context, created FROM edges WHERE source = ? AND target = ? AND type = ?",
+      `SELECT ${EDGE_COLS} FROM edges WHERE source = ? AND target = ? AND type = ?`,
       [source, target, edgeType],
     );
     if (existing === null) throw new MemoryError("conflict", "edge insert raced and vanished");
     return rowToEdge(existing);
   }
   audit(ctx, actor, "edge.create", id, true, { type: edgeType });
-  const row = ctx.mem.get<EdgeRow>(
-    "SELECT id, source, target, type, context, created FROM edges WHERE id = ?",
-    [id],
-  );
+  const row = ctx.mem.get<EdgeRow>(`SELECT ${EDGE_COLS} FROM edges WHERE id = ?`, [id]);
   if (row === null) throw new MemoryError("conflict", "edge insert raced and vanished");
   return rowToEdge(row);
+}
+
+/**
+ * This fact stopped being true (TEMPORAL.md): sets valid_until (default:
+ * the store clock's now) and KEEPS the row — "what was true last spring?"
+ * stays a plain query. Refuses system edge types (I15 — closing a no_match
+ * would reopen I9 through the side door), an already-closed edge (loud:
+ * closing twice is a host bug worth hearing about), and an `until` at or
+ * before valid_from. Audited content-free.
+ */
+export function closeEdge(ctx: Ctx, id: EdgeId, until?: string): Edge {
+  const row = ctx.mem.get<EdgeRow>(`SELECT ${EDGE_COLS} FROM edges WHERE id = ?`, [id]);
+  if (row === null) throw new MemoryError("not_found", `no edge ${id}`);
+  if ((SYSTEM_EDGE_TYPES as readonly string[]).includes(row.type))
+    throw new MemoryError("conflict", `system edge type ${JSON.stringify(row.type)} is timeless (I15)`);
+  if (row.valid_until !== null) throw new MemoryError("conflict", `edge ${id} is already closed`);
+  const at = until !== undefined ? parseStrictIso(until, "until") : ctx.now().toISOString();
+  if (row.valid_from !== null && at <= row.valid_from)
+    throw new MemoryError("props_invalid", "until must be after valid_from");
+  ctx.mem.run("UPDATE edges SET valid_until = ? WHERE id = ?", [at, id]);
+  audit(ctx, "owner", "edge.close", id, true, {});
+  return rowToEdge({ ...row, valid_until: at });
 }
 
 // --- lifecycle primitives owned by the spine ---

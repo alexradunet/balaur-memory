@@ -12,7 +12,15 @@
  */
 
 import { audit, type Ctx, insertEdge, mustGet, reindexNode } from "./spine.ts";
-import { type Edge, type EdgeId, MemoryError, type Node, type NodeId, normalizeText } from "./types.ts";
+import {
+  type Edge,
+  type EdgeId,
+  MemoryError,
+  type Node,
+  type NodeId,
+  normalizeText,
+  parseStrictIso,
+} from "./types.ts";
 
 /** Owner verb: record a name the node also answers to. Idempotent; the
  * node must be active; an alias equal to the node's own title is refused
@@ -388,7 +396,7 @@ function recencyAnchor(n: Node): string {
  * (last_used ?? updated) descending, id ascending on ties; hard-capped at
  * `limit`. A pure read: nothing is audited, touched, or written.
  */
-export function entityContext(ctx: Ctx, id: NodeId, limit = 6): EntityContext {
+export function entityContext(ctx: Ctx, id: NodeId, limit = 6, asOf?: string): EntityContext {
   if (!Number.isInteger(limit) || limit < 0)
     throw new MemoryError("props_invalid", "limit must be a non-negative integer");
   const node = mustGet(ctx, id);
@@ -402,6 +410,10 @@ export function entityContext(ctx: Ctx, id: NodeId, limit = 6): EntityContext {
   if (node.surfacing === "never")
     throw new MemoryError("conflict", "never-surfaced nodes do not take peer cards (I2)");
 
+  // The card describes the world at t — NOW by default (TEMPORAL.md): a
+  // closed edge (and a peer connected only by closed edges) drops out of
+  // the present and reappears under an asOf inside its window.
+  const t = asOf !== undefined ? parseStrictIso(asOf, "asOf") : ctx.now().toISOString();
   const rows = ctx.mem.query<{
     id: string;
     source: string;
@@ -409,11 +421,15 @@ export function entityContext(ctx: Ctx, id: NodeId, limit = 6): EntityContext {
     type: string;
     context: string;
     created: string;
+    valid_from: string | null;
+    valid_until: string | null;
   }>(
-    `SELECT id, source, target, type, context, created FROM edges
+    `SELECT id, source, target, type, context, created, valid_from, valid_until FROM edges
      WHERE (source = ? OR target = ?) AND type != 'no_match'
+       AND (valid_from IS NULL OR valid_from <= ?)
+       AND (valid_until IS NULL OR valid_until > ?)
      ORDER BY created ASC, id ASC`,
-    [id, id],
+    [id, id, t, t],
   );
   const bySide = new Map<string, Edge[]>();
   for (const r of rows) {
@@ -426,6 +442,8 @@ export function entityContext(ctx: Ctx, id: NodeId, limit = 6): EntityContext {
       type: r.type,
       context: r.context,
       created: r.created,
+      validFrom: r.valid_from,
+      validUntil: r.valid_until,
     };
     const list = bySide.get(peerId);
     if (list === undefined) bySide.set(peerId, [edge]);

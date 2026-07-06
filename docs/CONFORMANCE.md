@@ -35,19 +35,22 @@ can reimplement):
 ```
 
 - `steps` use a small op vocabulary mapping 1:1 to the public API
-  (`registerType, createNode, updateNode, link, transition, touch,
-  setSurfacing, propose, proposeEdit, decide, addAlias, suggestIdentities,
-  decideIdentity, putVector, quarantine, forget, recordDerivation,
-  rebuildIndex, reopenWithoutIndex`). `link` takes an optional edge
-  `type` and `context`; `registerType` takes an optional `propsSchema`;
-  a step with `expectError` asserts the op throws.
+  (`registerType, createNode, updateNode, link, closeEdge, transition,
+  touch, setSurfacing, propose, proposeEdit, decide, addAlias,
+  suggestIdentities, decideIdentity, putVector, quarantine, forget,
+  recordDerivation, rebuildIndex, reopenWithoutIndex`). `link` takes an
+  optional edge `type`, `context`, and `validity` window, and binds its
+  Edge via `as` (so `closeEdge` can reference `@e.id`); `registerType`
+  takes an optional `propsSchema`; a step with `expectError` asserts the
+  op throws.
 - `as` binds returned nodes/outcomes/reports to names later steps and
   expectations reference (`@name` / `@name.id`).
 - `expect` entries assert bound values (`bound`), ranked reads (`recall`,
   `entityContext`), gate outcomes (`outcome`), hint sets (`conflicts`),
   forget reports (`report`), traversals (`neighborhood`) — or **raw SQL
   against memory.db / index.db** (`sql` / `sqlIndex`): the contract is the
-  database, so the assertions read the database.
+  database, so the assertions read the database. `neighborhood` and
+  `entityContext` take an optional `asOf` (TEMPORAL.md time travel).
 - `clock` (plus optional per-step `advanceMs`) makes time-dependent
   behavior (recency decay, review_at, staleness) deterministic.
 
@@ -74,12 +77,16 @@ can reimplement):
 | `merge-adversarial-edges` | **I9 under merge**: no_match never transplants; self-loops die; chains flatten |
 | `consent-schema-enforcement` | the decide path coerces + validates props against the type schema (I5) |
 | `update-node` | retitle reconciles a now-equal alias; props replace wholesale; audited (I12) |
+| `temporal-siemens-years` | **I15**: declared validity, closeEdge + system-type refusals, asOf time travel |
 
-Thirteen of fourteen invariants are scenario-pinned. The remaining one:
+Fourteen of sixteen invariants are scenario-pinned. The remaining two:
 
 - **I14 (single writer)** — by construction, not by scenario: one Store
   instance owns writes, WAL permits external readers. A conformance test
   cannot prove host discipline; the invariant documents it.
+- **I16 (history dies with the tombstone)** — reserved: the table and the
+  invariant land with schema v3, but the history producers arrive with
+  temporal Phase B; the scenario lands with the producers.
 
 The `doctor()` report is covered by unit tests (`src/doctor.test.ts`)
 rather than scenarios — it reads state and never mutates, so there is no

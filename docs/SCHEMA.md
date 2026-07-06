@@ -64,12 +64,14 @@ CREATE INDEX idx_nodes_type_status ON nodes(type, status);
 CREATE INDEX idx_nodes_status_imp  ON nodes(status, importance DESC);
 
 CREATE TABLE edges (
-  id      TEXT PRIMARY KEY,
-  source  TEXT NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
-  target  TEXT NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
-  type    TEXT NOT NULL DEFAULT 'links',
-  context TEXT NOT NULL DEFAULT '',
-  created TEXT NOT NULL,
+  id          TEXT PRIMARY KEY,
+  source      TEXT NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+  target      TEXT NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+  type        TEXT NOT NULL DEFAULT 'links',
+  context     TEXT NOT NULL DEFAULT '',
+  created     TEXT NOT NULL,          -- transaction time: when recorded
+  valid_from  TEXT,                   -- (v3) world time: NULL = undated
+  valid_until TEXT,                   -- (v3) NULL = still true
   UNIQUE (source, target, type)
 ) STRICT;
 CREATE INDEX idx_edges_target ON edges(target);
@@ -124,6 +126,22 @@ CREATE TABLE identity_pending (
   evidence TEXT NOT NULL CHECK (evidence IN ('title_match','token_subset','alias_match')),
   created  TEXT NOT NULL,
   PRIMARY KEY (a, b)
+) STRICT;
+
+-- (v3) What a node used to say (TEMPORAL.md): append-only PRE-mutation
+-- snapshots, actor-attributed. Content-bearing BY DESIGN — the complement
+-- to the content-free audit log, with the opposite fate under forget (I16).
+CREATE TABLE memory_history (
+  node_id TEXT NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+  seq     INTEGER NOT NULL,
+  title   TEXT NOT NULL,
+  body    TEXT NOT NULL,
+  props   TEXT NOT NULL,
+  actor   TEXT NOT NULL CHECK (actor IN ('owner','agent','system')),
+  action  TEXT NOT NULL,
+  origin  TEXT NOT NULL,
+  at      TEXT NOT NULL,
+  PRIMARY KEY (node_id, seq)
 ) STRICT;
 ```
 
@@ -203,11 +221,12 @@ nodes.
   steps.
 - **I6 — Tombstone semantics.** `forget` sets `status='forgotten'`,
   `title=''`, `body=''`, `props='{}'`, `origin=''`, `author=''`; clears
-  `pending_edits` and (v2) the node's `aliases`; deletes the node's edges;
-  scrubs it from `nodes_fts` and `vectors`; marks `derivations` rows with
-  it as `source` stale; lists merged husks chained into it as `husk:<id>`
-  in the report's `needsOwner` (computed before the edges drop). The row,
-  `type`, and timestamps survive.
+  `pending_edits`, (v2) the node's `aliases` and its open
+  `identity_pending` questions, and (v3) its `memory_history` rows;
+  deletes the node's edges; scrubs it from `nodes_fts` and `vectors`;
+  marks `derivations` rows with it as `source` stale; lists merged husks
+  chained into it as `husk:<id>` in the report's `needsOwner` (computed
+  before the edges drop). The row, `type`, and timestamps survive.
 - **I7 — Content-free forget audit.** Audit entries for forget-class actions
   carry ids and counts only. No audit row anywhere carries node title/body
   text.
@@ -228,13 +247,29 @@ nodes.
   always.
 - **I12 — Audit coverage.** Every mutation of `nodes`, `edges`,
   `pending_edits`, and every decision writes exactly one audit row
-  (compound decisions: one per step plus one summary).
+  (compound decisions: one per step plus one summary). (v3)
+  `memory_history` snapshots ride inside mutations that already audit —
+  they add no audit rows of their own; the history row is the record.
 - **I13 — Disposable index.** Deleting `index.db` loses no information;
   `rebuildIndex()` reconstructs it from `memory.db` exactly (FTS rows for
   active nodes only; vectors are re-suppliable by the host).
 - **I14 — Single writer.** One `Store` instance owns writes to a given
   `memory.db`. WAL mode permits concurrent external readers (e.g., any
   external tool mounting the file read-only).
+- **I15 — Validity is declared, never inferred.** (v3) `valid_from` /
+  `valid_until` are set only from explicit arguments to `link`/`closeEdge`
+  (strict ISO-8601 UTC; date-only = midnight UTC; `until > from`). The
+  library never derives a validity date from content, context, or clock
+  heuristics. System edge types (`on_day`, `supersedes`, `merged_into`,
+  `no_match`, `derived_from`) carry NULL validity always, and `closeEdge`
+  refuses them — closing a `no_match` edge would reopen I9 through the
+  side door. Edge-carrying reads (`neighborhood`, `entityContext`) default
+  to the currently-valid world; `asOf` time-travels.
+- **I16 — History dies with the tombstone.** (v3) `memory_history` rows
+  are content: `forget(id)` removes every row for the node in the cascade
+  transaction. Audit rows, being content-free, survive. History is
+  append-only otherwise — no other verb may delete it. (Producers land
+  with temporal Phase B.)
 
 ## Deliberate schema choices
 
