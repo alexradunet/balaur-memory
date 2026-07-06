@@ -18,7 +18,7 @@ export type {
 export type { EntityContext, IdentityEvidence, Peer } from "./entities.ts";
 export type { ForgetReport } from "./lifecycle.ts";
 export { DEFAULT_RANKING, termsFromText } from "./recall.ts";
-export type { Validity } from "./spine.ts";
+export type { HistorySnapshot, Validity } from "./spine.ts";
 export { SCHEMA_VERSION } from "./storage/schema.ts";
 export { ulid } from "./storage/ulid.ts";
 export { Store, type StoreOptions } from "./store.ts";

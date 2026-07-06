@@ -50,7 +50,9 @@ can reimplement):
   forget reports (`report`), traversals (`neighborhood`) — or **raw SQL
   against memory.db / index.db** (`sql` / `sqlIndex`): the contract is the
   database, so the assertions read the database. `neighborhood` and
-  `entityContext` take an optional `asOf` (TEMPORAL.md time travel).
+  `entityContext` take an optional `asOf` (TEMPORAL.md time travel);
+  `history` asserts snapshot replays (length / bodiesInOrder / actions /
+  origins).
 - `clock` (plus optional per-step `advanceMs`) makes time-dependent
   behavior (recency decay, review_at, staleness) deterministic.
 
@@ -78,15 +80,15 @@ can reimplement):
 | `consent-schema-enforcement` | the decide path coerces + validates props against the type schema (I5) |
 | `update-node` | retitle reconciles a now-equal alias; props replace wholesale; audited (I12) |
 | `temporal-siemens-years` | **I15**: declared validity, closeEdge + system-type refusals, asOf time travel |
+| `I16-history-forget` | **I16**: the three capture moments replayed; history dies with the tombstone; audit survives |
 
-Fourteen of sixteen invariants are scenario-pinned. The remaining two:
+Fifteen of sixteen invariants are scenario-pinned. The remaining one:
 
 - **I14 (single writer)** — by construction, not by scenario: one Store
   instance owns writes, WAL permits external readers. A conformance test
   cannot prove host discipline; the invariant documents it.
-- **I16 (history dies with the tombstone)** — reserved: the table and the
-  invariant land with schema v3, but the history producers arrive with
-  temporal Phase B; the scenario lands with the producers.
+
+Every invariant with a possible producer has one.
 
 The `doctor()` report is covered by unit tests (`src/doctor.test.ts`)
 rather than scenarios — it reads state and never mutates, so there is no

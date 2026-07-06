@@ -117,6 +117,12 @@ export class Store implements StoreContract {
     return spine.updateNode(this.guard(), id, patch);
   }
 
+  /** What this node used to say — pre-mutation snapshots, oldest first
+   * (TEMPORAL.md, I16). Empty after forget: history dies with the tombstone. */
+  history(id: NodeId): spine.HistorySnapshot[] {
+    return spine.history(this.guard(), id);
+  }
+
   link(source: NodeId, target: NodeId, type = "links", context = "", validity?: spine.Validity): Edge {
     return spine.insertEdge(this.guard(), source, target, type, context, "owner", validity);
   }

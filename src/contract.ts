@@ -11,7 +11,7 @@
 import type { Conflict, Decision, Outcome, Pending, Proposal } from "./consent.ts";
 import type { EntityContext } from "./entities.ts";
 import type { ForgetReport } from "./lifecycle.ts";
-import type { Validity } from "./spine.ts";
+import type { HistorySnapshot, Validity } from "./spine.ts";
 import type { Edge, EdgeId, Node, NodeId, NodeTypeSpec, Props, Status, Surfacing } from "./types.ts";
 
 /** Tunables for the recall ranking blend; conformance pins the defaults. */
@@ -62,6 +62,10 @@ export interface StoreContract {
   getNode(id: NodeId): Node;
   /** Edit an ACTIVE owner-authored node in place. */
   updateNode(id: NodeId, patch: { title?: string; body?: string; props?: Props }): Node;
+  /** What the node used to say (TEMPORAL.md, I16): pre-mutation snapshots,
+   * oldest first, actor- and origin-attributed. Id-gated like getNode;
+   * empty after forget — history dies with the tombstone. Read-only. */
+  history(id: NodeId): HistorySnapshot[];
   /** Idempotent on (source, target, type). */
   /** Idempotent on (source, target, type). Optional world-time validity
    * window (TEMPORAL.md): declared, never inferred (I15); strict ISO;

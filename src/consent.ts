@@ -23,6 +23,7 @@ import {
   insertNode,
   mustGet,
   reindexNode,
+  snapshotHistory,
   transition,
   typeRow,
 } from "./spine.ts";
@@ -324,7 +325,13 @@ export function conflictsFor(ctx: Ctx, id: NodeId): Conflict[] {
  * then pass the same schema validation every other write path runs
  * (review-2 F3: the consent boundary must not be the one write that can
  * mint a schema-violating node). */
-function applyFields(ctx: Ctx, id: NodeId, fields: Readonly<Record<string, string>>): Node {
+function applyFields(
+  ctx: Ctx,
+  id: NodeId,
+  fields: Readonly<Record<string, string>>,
+  historyAction: string,
+  historyOrigin: string,
+): Node {
   const node = mustGet(ctx, id);
   const t = typeRow(ctx, node.type);
   const schema = JSON.parse(t.props_schema) as Record<
@@ -365,6 +372,10 @@ function applyFields(ctx: Ctx, id: NodeId, fields: Readonly<Record<string, strin
   // Same validator as birth and updateNode; template body-fill stays a
   // birth-only semantic — the edited body is used as-is.
   const checked = applyTemplateAndValidate(t, body, props);
+  // Capture moments 2 and 3 of 3 (I16): the pre-change content, attributed
+  // to the verdict that changed it — after validation, so a refused edit
+  // snapshots nothing (nothing changed).
+  snapshotHistory(ctx, node, historyAction, historyOrigin);
   ctx.mem.run("UPDATE nodes SET title = ?, body = ?, importance = ?, props = ?, updated = ? WHERE id = ?", [
     title,
     body,
@@ -399,7 +410,7 @@ export function decide(ctx: Ctx, id: NodeId, d: Decision): Node {
         result = transition(ctx, id, "active");
         break;
       case "approve_edited":
-        applyFields(ctx, id, d.fields);
+        applyFields(ctx, id, d.fields, "consent.approve_edited", "");
         result = transition(ctx, id, "active");
         break;
       case "approve_superseding": {
@@ -443,10 +454,13 @@ export function decide(ctx: Ctx, id: NodeId, d: Decision): Node {
   let result: Node = node;
   switch (d.kind) {
     case "approve":
-      result = envelope.archive ? transition(ctx, id, "archived") : applyFields(ctx, id, envelope.fields);
+      result = envelope.archive
+        ? transition(ctx, id, "archived")
+        : applyFields(ctx, id, envelope.fields, "consent.edit_applied", envelope.origin);
       break;
     case "approve_edited":
-      result = applyFields(ctx, id, d.fields); // owner-corrected fields replace the envelope's
+      // owner-corrected fields replace the envelope's
+      result = applyFields(ctx, id, d.fields, "consent.approve_edited", "");
       break;
     case "approve_superseding":
       throw new MemoryError("invalid_transition", "supersede applies to proposals, not parked edits");

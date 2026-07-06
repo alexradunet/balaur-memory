@@ -143,3 +143,86 @@ describe("edge validity (Phase A, I15)", () => {
     expect(e.validFrom).toBe("2026-01-01T00:00:00.000Z");
   });
 });
+
+describe("memory history (Phase B, I16)", () => {
+  test("the three capture moments, attributed, replayed oldest-first", () => {
+    store.registerType({ name: "memory", bornStatus: "proposed" });
+    // moment 1: updateNode on an owner-authored node
+    const n = store.createNode({ type: "person", title: "Ana", body: "v1", props: { a: 1 }, origin: "o" });
+    store.updateNode(n.id, { body: "v2", props: { b: 2 } });
+    const h1 = store.history(n.id);
+    expect(h1).toHaveLength(1);
+    expect(h1[0]?.body).toBe("v1"); // the PRE-change content
+    expect(h1[0]?.props).toEqual({ a: 1 }); // props roundtrip
+    expect(h1[0]?.actor).toBe("owner");
+    expect(h1[0]?.action).toBe("node.update");
+
+    // moments 2 + 3: the consent verdicts
+    const p = store.propose({ type: "memory", title: "Dog fact", body: "a retriever", origin: "turn:t1" });
+    store.decide(p.node.id, { kind: "approve_edited", fields: { body: "a retriever, 4yo" } });
+    store.proposeEdit(p.node.id, { fields: { body: "a retriever, 5yo" }, origin: "turn:e2" });
+    store.decide(p.node.id, { kind: "approve" });
+    const h2 = store.history(p.node.id);
+    expect(h2.map((s) => s.body)).toEqual(["a retriever", "a retriever, 4yo"]); // oldest first
+    expect(h2.map((s) => s.action)).toEqual(["consent.approve_edited", "consent.edit_applied"]);
+    expect(h2.map((s) => s.origin)).toEqual(["", "turn:e2"]); // the envelope's provenance rides
+    expect(h2.map((s) => s.seq)).toEqual([1, 2]);
+  });
+
+  test("non-moments never snapshot: birth, transitions, touch, surfacing, merge, reject", () => {
+    store.registerType({ name: "memory", bornStatus: "proposed" });
+    const n = store.createNode({ type: "person", title: "Quiet Life", origin: "o" });
+    store.touch(n.id);
+    store.setSurfacing(n.id, "ask");
+    store.transition(n.id, "archived");
+    store.transition(n.id, "active");
+    expect(store.history(n.id)).toHaveLength(0);
+
+    const p = store.propose({ type: "memory", title: "Rejected fact", body: "x", origin: "t" });
+    store.decide(p.node.id, { kind: "reject" }); // no content changed
+    expect(store.history(p.node.id)).toHaveLength(0);
+
+    const keep = store.createNode({ type: "person", title: "Keeper H", origin: "o" });
+    const dup = store.createNode({ type: "person", title: "keeper h", origin: "o" });
+    store.decideIdentity(keep.id, dup.id, "same"); // both contents preserved in place
+    expect(store.history(keep.id)).toHaveLength(0);
+    expect(store.history(dup.id)).toHaveLength(0); // the husk IS the history
+  });
+
+  test("a refused edit snapshots nothing — validation precedes capture", () => {
+    store.registerType({
+      name: "gauge",
+      bornStatus: "proposed",
+      propsSchema: { amount: { type: "number", required: true } },
+    });
+    const p = store.propose({ type: "gauge", title: "G", body: "", props: { amount: 1 }, origin: "t" });
+    expect(() =>
+      store.decide(p.node.id, { kind: "approve_edited", fields: { amount: "not-a-number" } }),
+    ).toThrow(MemoryError);
+    expect(store.history(p.node.id)).toHaveLength(0); // nothing changed, nothing captured
+  });
+
+  test("forget scrubs history and keeps audit; history stays id-gated", () => {
+    const n = store.createNode({ type: "person", title: "Gone Soon", body: "v1", origin: "o" });
+    store.updateNode(n.id, { body: "v2" });
+    store.setSurfacing(n.id, "never");
+    expect(store.history(n.id)).toHaveLength(1); // id-gated like getNode — never-surfaced readable
+
+    store.forget(n.id);
+    expect(store.history(n.id)).toHaveLength(0); // I16: history died with the tombstone
+    const db = new Database(join(dir, "memory.db"), { readonly: true });
+    const hist = db.query("SELECT COUNT(*) AS c FROM memory_history WHERE node_id = ?").get(n.id) as {
+      c: number;
+    };
+    const auditRows = db
+      .query("SELECT COUNT(*) AS c FROM audit_log WHERE ref = ? AND action = 'node.update'")
+      .get(n.id) as { c: number };
+    db.close();
+    expect(hist.c).toBe(0);
+    expect(auditRows.c).toBe(1); // the content-free record survives
+
+    expect(() =>
+      store.history("01hzzzzzzzzzzzzzzzzzzzzzzz" as unknown as Parameters<Store["history"]>[0]),
+    ).toThrow("no node");
+  });
+});

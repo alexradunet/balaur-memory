@@ -1,0 +1,71 @@
+{
+  "name": "I16: history replays owner mutations, dies with the tombstone; audit survives",
+  "invariants": ["I16", "I7"],
+  "clock": "2026-07-05T12:00:00.000Z",
+  "steps": [
+    { "op": "registerType", "name": "memory", "bornStatus": "proposed" },
+    { "op": "registerType", "name": "note", "bornStatus": "active" },
+    {
+      "op": "propose",
+      "as": "p1",
+      "proposal": { "type": "memory", "title": "Dog fact", "body": "a golden retriever", "origin": "turn:t1" }
+    },
+    {
+      "op": "decide",
+      "id": "@p1.id",
+      "decision": { "kind": "approve_edited", "fields": { "body": "golden retriever, 4 years old" } }
+    },
+    {
+      "op": "proposeEdit",
+      "id": "@p1.id",
+      "change": { "fields": { "body": "golden retriever, 5 years old" }, "origin": "turn:e2" }
+    },
+    { "op": "decide", "id": "@p1.id", "decision": { "kind": "approve" } },
+    {
+      "op": "propose",
+      "as": "p2",
+      "proposal": { "type": "memory", "title": "Cat fact", "body": "a tabby", "origin": "turn:t3" }
+    },
+    {
+      "op": "decide",
+      "id": "@p2.id",
+      "decision": { "kind": "approve_edited", "fields": { "body": "a tabby named Miu" } }
+    },
+    {
+      "op": "proposeEdit",
+      "id": "@p2.id",
+      "change": { "fields": { "body": "a tabby named Miu, 2 years" }, "origin": "turn:e9" }
+    },
+    { "op": "decide", "id": "@p2.id", "decision": { "kind": "approve" } },
+    {
+      "op": "createNode",
+      "as": "n1",
+      "input": { "type": "note", "title": "Trip note", "body": "v1", "origin": "t" }
+    },
+    { "op": "updateNode", "id": "@n1.id", "patch": { "body": "v2" } },
+    { "op": "forget", "id": "@p1.id" }
+  ],
+  "expect": [
+    {
+      "history": "p2",
+      "length": 2,
+      "bodiesInOrder": ["a tabby", "a tabby named Miu"],
+      "actions": ["consent.approve_edited", "consent.edit_applied"],
+      "origins": ["", "turn:e9"]
+    },
+    { "history": "n1", "length": 1, "bodiesInOrder": ["v1"], "actions": ["node.update"] },
+    { "history": "p1", "length": 0 },
+    {
+      "sql": "SELECT COUNT(*) FROM memory_history WHERE node_id = ?",
+      "params": ["@p1.id"],
+      "equals": 0
+    },
+    {
+      "sql": "SELECT COUNT(*) FROM audit_log WHERE ref = ? AND action = 'consent.decide'",
+      "params": ["@p1.id"],
+      "equals": 2
+    },
+    { "sql": "SELECT COUNT(*) FROM audit_log WHERE meta LIKE '%retriever%'", "equals": 0 },
+    { "sql": "SELECT COUNT(*) FROM memory_history", "equals": 3 }
+  ]
+}

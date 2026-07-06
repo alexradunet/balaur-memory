@@ -359,6 +359,7 @@ export function updateNode(
     if (patch.title !== undefined) {
       ctx.mem.run("DELETE FROM aliases WHERE node_id = ? AND alias = ?", [id, normalizeText(title)]);
     }
+    snapshotHistory(ctx, node, "node.update", ""); // capture moment 1 of 3 (I16)
     ctx.mem.run("UPDATE nodes SET title = ?, body = ?, props = ?, updated = ? WHERE id = ?", [
       title,
       nextBody,
@@ -427,6 +428,80 @@ function rowToEdge(r: EdgeRow): Edge {
 export interface Validity {
   readonly from?: string;
   readonly until?: string;
+}
+
+// --- memory history (TEMPORAL.md Phase B; I16) ---
+
+/** One PRE-mutation content snapshot: what the node said before an
+ * owner-authority change, and which verb changed it. */
+export interface HistorySnapshot {
+  readonly seq: number;
+  readonly title: string;
+  readonly body: string;
+  readonly props: Props;
+  readonly actor: "owner" | "agent" | "system";
+  readonly action: string;
+  readonly origin: string;
+  readonly at: string;
+}
+
+/** Append the pre-change snapshot. Rides INSIDE mutations that already
+ * audit — no audit row of its own (I12); content-bearing BY DESIGN, the
+ * complement to the content-free audit log, scrubbed by the forget
+ * cascade (I16). All three capture moments are owner-authority acts. */
+export function snapshotHistory(ctx: Ctx, node: Node, action: string, origin: string): void {
+  const seq =
+    ctx.mem.get<{ s: number }>(
+      "SELECT COALESCE(MAX(seq), 0) + 1 AS s FROM memory_history WHERE node_id = ?",
+      [node.id],
+    )?.s ?? 1;
+  ctx.mem.run(
+    `INSERT INTO memory_history (node_id, seq, title, body, props, actor, action, origin, at)
+     VALUES (?, ?, ?, ?, ?, 'owner', ?, ?, ?)`,
+    [
+      node.id,
+      seq,
+      node.title,
+      node.body,
+      JSON.stringify(node.props),
+      action,
+      origin,
+      ctx.now().toISOString(),
+    ],
+  );
+}
+
+/** What the node used to say, oldest first — replaying the list is
+ * replaying the node's life. Id-gated like getNode (I2's strongest
+ * naming); a forgotten node's history is EMPTY because forget scrubbed
+ * it (I16). Read-only: history is evidence, not an undo stack. */
+export function history(ctx: Ctx, id: NodeId): HistorySnapshot[] {
+  mustGet(ctx, id);
+  return ctx.mem
+    .query<{
+      seq: number;
+      title: string;
+      body: string;
+      props: string;
+      actor: string;
+      action: string;
+      origin: string;
+      at: string;
+    }>(
+      `SELECT seq, title, body, props, actor, action, origin, at
+       FROM memory_history WHERE node_id = ? ORDER BY seq ASC`,
+      [id],
+    )
+    .map((r) => ({
+      seq: r.seq,
+      title: r.title,
+      body: r.body,
+      props: parseProps(r.props),
+      actor: r.actor as "owner" | "agent" | "system",
+      action: r.action,
+      origin: r.origin,
+      at: r.at,
+    }));
 }
 
 /** Idempotent on (source, target, type): a duplicate returns the existing

@@ -57,9 +57,12 @@ construction) — every invariant with a possible producer has one. The
 entity arc (ENTITIES.md) is complete, all four phases: aliases,
 resolution, deterministic identity questions, owner-decided merges with
 no_match permanence, and the bounded `entityContext` peer card for host
-prompts. The library is fully standalone — no parent application, no host
-commitments: any host, present or future, builds on the schema contract
-and the TypeScript API.
+prompts. The temporal arc (TEMPORAL.md) is complete too: declared
+edge-validity windows with `asOf` time travel ("this was true, and then
+it stopped" — dates in, never models), and owner-mutation memory history
+that dies with the tombstone. The library is fully standalone — no parent
+application, no host commitments: any host, present or future, builds on
+the schema contract and the TypeScript API.
 
 ## Docs
 
