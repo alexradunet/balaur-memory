@@ -22,7 +22,7 @@ import type { RankingConfig, RecallOptions } from "./contract.ts";
 import { allVectors, cosine } from "./indexdb/vectors.ts";
 import type { Ctx } from "./spine.ts";
 import type { Node, NodeId, Status, Surfacing } from "./types.ts";
-import { parseProps } from "./types.ts";
+import { MemoryError, parseProps, parseStrictIso } from "./types.ts";
 
 /** Pinned defaults — conformance and the golden fixtures assume these. */
 export const DEFAULT_RANKING: RankingConfig = { lambda: 0.02, reinforcement: 0.2, rrfK: 60 };
@@ -140,6 +140,7 @@ interface RowShape {
   use_count: number;
   last_used: string | null;
   review_at: string | null;
+  when_at: string | null;
   created: string;
   updated: string;
 }
@@ -150,7 +151,7 @@ function loadEligible(ctx: Ctx, ids: readonly string[], terms: readonly string[]
   const placeholders = ids.map(() => "?").join(", ");
   const rows = ctx.mem.query<RowShape & Record<string, string | number | null>>(
     `SELECT id, type, title, body, status, surfacing, importance, props, origin, author,
-            use_count, last_used, review_at, created, updated
+            use_count, last_used, review_at, when_at, created, updated
      FROM nodes WHERE id IN (${placeholders})
        AND status = 'active' AND surfacing IN ('always', 'ask')`,
     [...ids],
@@ -158,25 +159,30 @@ function loadEligible(ctx: Ctx, ids: readonly string[], terms: readonly string[]
   const lowered = terms.map((t) => t.toLowerCase());
   for (const r of rows) {
     if (r.surfacing === "ask" && !titleNamed(r.title, lowered)) continue; // I2
-    out.set(r.id, {
-      id: r.id as NodeId, // brand boundary
-      type: r.type,
-      title: r.title,
-      body: r.body,
-      status: r.status as Status,
-      surfacing: r.surfacing as Surfacing,
-      importance: r.importance,
-      props: parseProps(r.props),
-      origin: r.origin,
-      author: r.author,
-      useCount: r.use_count,
-      lastUsed: r.last_used,
-      reviewAt: r.review_at,
-      created: r.created,
-      updated: r.updated,
-    });
+    out.set(r.id, rowShapeToNode(r));
   }
   return out;
+}
+
+function rowShapeToNode(r: RowShape): Node {
+  return {
+    id: r.id as NodeId, // brand boundary
+    type: r.type,
+    title: r.title,
+    body: r.body,
+    status: r.status as Status,
+    surfacing: r.surfacing as Surfacing,
+    importance: r.importance,
+    props: parseProps(r.props),
+    origin: r.origin,
+    author: r.author,
+    useCount: r.use_count,
+    lastUsed: r.last_used,
+    reviewAt: r.review_at,
+    when: r.when_at,
+    created: r.created,
+    updated: r.updated,
+  };
 }
 
 /** An `ask` node is surfaced only when a query term IS a word of its title.
@@ -257,4 +263,41 @@ export function recall(ctx: Ctx, terms: readonly string[], opts: RecallOptions =
 /** Cross-type recall over all active, surfaceable knowledge. */
 export function search(ctx: Ctx, terms: readonly string[], limit = 10): Node[] {
   return recall(ctx, terms, { limit });
+}
+
+const DEFAULT_AGENDA_LIMIT = 100;
+
+/**
+ * Ambient recall over time (PLANNING.md): active nodes with a scheduled
+ * moment in [from, to), ordered when_at ASC then id ASC. I2 applies
+ * exactly as in recall — an agenda pull literally names nothing, so only
+ * `always`-surfaced nodes appear; `ask` stays off the board (the owner's
+ * choice working, not failing) and `never` is invisible here as
+ * everywhere. Past windows are the January calendar — time travel the
+ * same way asOf is. Both bounds strict ISO (I17's shared time rule).
+ */
+export function agenda(
+  ctx: Ctx,
+  from: string,
+  to: string,
+  opts: { type?: string; limit?: number } = {},
+): Node[] {
+  const lo = parseStrictIso(from, "from");
+  const hi = parseStrictIso(to, "to");
+  if (hi <= lo) throw new MemoryError("props_invalid", "to must be after from");
+  const limit = opts.limit ?? DEFAULT_AGENDA_LIMIT;
+  if (!Number.isInteger(limit) || limit < 1)
+    throw new MemoryError("props_invalid", "limit must be a positive integer");
+  const typed = opts.type !== undefined;
+  const rows = ctx.mem.query<RowShape & Record<string, string | number | null>>(
+    `SELECT id, type, title, body, status, surfacing, importance, props, origin, author,
+            use_count, last_used, review_at, when_at, created, updated
+     FROM nodes
+     WHERE when_at IS NOT NULL AND when_at >= ? AND when_at < ?
+       AND status = 'active' AND surfacing = 'always'
+       ${typed ? "AND type = ?" : ""}
+     ORDER BY when_at ASC, id ASC LIMIT ?`,
+    typed ? [lo, hi, opts.type as string, limit] : [lo, hi, limit],
+  );
+  return rows.map(rowShapeToNode);
 }

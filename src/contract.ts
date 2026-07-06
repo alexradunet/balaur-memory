@@ -38,6 +38,9 @@ export interface DoctorReport {
   readonly deadWeightCandidates: readonly NodeId[]; // dormant ≠ dead — review only
   readonly staleCandidates: readonly NodeId[];
   readonly duplicateCandidates: ReadonlyArray<readonly [NodeId, NodeId]>;
+  /** Active nodes whose scheduled moment has passed — oldest-due first,
+   * capped, never-surfaced excluded (PLANNING.md). Reports, never acts. */
+  readonly dueCandidates: readonly NodeId[];
   readonly queueOldestDays: number | null;
 }
 
@@ -55,13 +58,15 @@ export interface StoreContract {
     props?: Props;
     importance?: number;
     surfacing?: Surfacing;
+    when?: string;
     origin: string;
     author?: string;
   }): Node;
   /** Fetch by id regardless of status — hosts gate display. */
   getNode(id: NodeId): Node;
-  /** Edit an ACTIVE owner-authored node in place. */
-  updateNode(id: NodeId, patch: { title?: string; body?: string; props?: Props }): Node;
+  /** Edit an ACTIVE owner-authored node in place. `when`: undefined =
+   * unchanged, null = clear, string = validated set (I17). */
+  updateNode(id: NodeId, patch: { title?: string; body?: string; props?: Props; when?: string | null }): Node;
   /** What the node used to say (TEMPORAL.md, I16): pre-mutation snapshots,
    * oldest first, actor- and origin-attributed. Id-gated like getNode;
    * empty after forget — history dies with the tombstone. Read-only. */
@@ -104,6 +109,13 @@ export interface StoreContract {
   recall(terms: readonly string[], opts?: RecallOptions): Node[];
   /** Cross-type recall over all active, surfaceable knowledge. */
   search(terms: readonly string[], limit?: number): Node[];
+  /** Ambient recall over time (PLANNING.md, I17): active, always-surfaced
+   * nodes with when_at in [from, to), when_at ASC. An agenda pull names
+   * nothing, so I2 keeps ask and never off the board. */
+  agenda(from: string, to: string, opts?: { type?: string; limit?: number }): Node[];
+  /** Get-or-create the day node for a UTC date — the public day anchor
+   * (PLANNING.md). Scheduling onto it is the host's explicit link. */
+  dayAnchor(date: string): Node;
   /** Record that recalled knowledge was actually used (feeds ranking + doctor). */
   touch(id: NodeId): void;
 

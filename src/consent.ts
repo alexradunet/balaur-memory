@@ -27,7 +27,7 @@ import {
   transition,
   typeRow,
 } from "./spine.ts";
-import { MemoryError, type Node, type NodeId, normalizeText, type Props } from "./types.ts";
+import { MemoryError, type Node, type NodeId, normalizeText, type Props, parseStrictIso } from "./types.ts";
 
 // --- types (the host-facing contract) ---
 
@@ -38,6 +38,9 @@ export interface Proposal {
   readonly body: string;
   readonly importance?: number; // 1..5; omit when not applicable
   readonly props?: Props;
+  /** The proposed scheduled moment (PLANNING.md) — an agent-proposed
+   * appointment is gated like everything else. Strict ISO (I17). */
+  readonly when?: string;
   readonly origin: string; // provenance is mandatory at birth (I10)
   readonly author?: string; // set when the content carries a third party's words
 }
@@ -142,16 +145,19 @@ export function propose(ctx: Ctx, p: Proposal): Outcome {
   const title = p.title.trim();
   if (title === "") throw new MemoryError("props_invalid", "title is required");
 
-  // 1. Merge into an existing pending proposal — latest proposal wins.
+  // 1. Merge into an existing pending proposal — latest proposal wins
+  //    (its `when` included, when supplied; I17 validates it first).
   const pending = findByNormalizedTitle(ctx, p.type, title, "proposed");
   if (pending !== null) {
     const props = { ...pending.props, ...(p.props ?? {}) };
+    const whenAt = p.when !== undefined ? parseStrictIso(p.when, "when") : pending.when;
     ctx.mem.run(
-      "UPDATE nodes SET body = ?, importance = ?, props = ?, origin = ?, author = ?, updated = ? WHERE id = ?",
+      "UPDATE nodes SET body = ?, importance = ?, props = ?, when_at = ?, origin = ?, author = ?, updated = ? WHERE id = ?",
       [
         p.body,
         p.importance ?? pending.importance,
         JSON.stringify(props),
+        whenAt,
         p.origin,
         p.author ?? "",
         ctx.now().toISOString(),
@@ -183,6 +189,7 @@ export function propose(ctx: Ctx, p: Proposal): Outcome {
       origin: p.origin,
       ...(p.importance !== undefined ? { importance: p.importance } : {}),
       ...(p.props !== undefined ? { props: p.props } : {}),
+      ...(p.when !== undefined ? { when: p.when } : {}),
       ...(p.author !== undefined ? { author: p.author } : {}),
     },
     "proposed",
@@ -341,6 +348,7 @@ function applyFields(
   let title = node.title;
   let body = node.body;
   let importance = node.importance;
+  let whenAt = node.when;
   const props: Record<string, unknown> = { ...node.props };
   for (const [key, value] of Object.entries(fields)) {
     if (key === "title") {
@@ -348,6 +356,10 @@ function applyFields(
       title = value.trim();
     } else if (key === "body") {
       body = value;
+    } else if (key === "when") {
+      // The scheduled moment moves through verdicts too (PLANNING.md):
+      // strict ISO sets it, the empty string clears it (I17).
+      whenAt = value === "" ? null : parseStrictIso(value, "when");
     } else if (key === "importance") {
       const n = Number(value);
       if (!Number.isInteger(n) || n < 0 || n > 5)
@@ -376,14 +388,10 @@ function applyFields(
   // to the verdict that changed it — after validation, so a refused edit
   // snapshots nothing (nothing changed).
   snapshotHistory(ctx, node, historyAction, historyOrigin);
-  ctx.mem.run("UPDATE nodes SET title = ?, body = ?, importance = ?, props = ?, updated = ? WHERE id = ?", [
-    title,
-    body,
-    importance,
-    JSON.stringify(checked.props),
-    ctx.now().toISOString(),
-    id,
-  ]);
+  ctx.mem.run(
+    "UPDATE nodes SET title = ?, body = ?, importance = ?, props = ?, when_at = ?, updated = ? WHERE id = ?",
+    [title, body, importance, JSON.stringify(checked.props), whenAt, ctx.now().toISOString(), id],
+  );
   const updated = mustGet(ctx, id);
   reindexNode(ctx, updated);
   return updated;

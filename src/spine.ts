@@ -84,12 +84,13 @@ interface NodeRow extends SqlRow {
   use_count: number;
   last_used: string | null;
   review_at: string | null;
+  when_at: string | null;
   created: string;
   updated: string;
 }
 
 const NODE_COLS =
-  "id, type, title, body, status, surfacing, importance, props, origin, author, use_count, last_used, review_at, created, updated";
+  "id, type, title, body, status, surfacing, importance, props, origin, author, use_count, last_used, review_at, when_at, created, updated";
 
 function rowToNode(r: NodeRow): Node {
   return {
@@ -106,6 +107,7 @@ function rowToNode(r: NodeRow): Node {
     useCount: r.use_count,
     lastUsed: r.last_used,
     reviewAt: r.review_at,
+    when: r.when_at,
     created: r.created,
     updated: r.updated,
   };
@@ -199,6 +201,8 @@ export interface CreateInput {
   readonly props?: Props;
   readonly importance?: number;
   readonly surfacing?: Surfacing;
+  /** The scheduled moment (PLANNING.md) — strict ISO, declared never inferred (I17). */
+  readonly when?: string;
   readonly origin: string;
   readonly author?: string;
 }
@@ -216,14 +220,15 @@ export function insertNode(ctx: Ctx, input: CreateInput, status: Status, actor: 
     throw new MemoryError("props_invalid", "importance must be an integer between 0 and 5");
   const t = typeRow(ctx, input.type);
   const { body, props } = applyTemplateAndValidate(t, input.body ?? "", input.props ?? {});
+  const whenAt = input.when !== undefined ? parseStrictIso(input.when, "when") : null; // I17
   const at = ctx.now();
   const iso = at.toISOString();
   const id = ulid(at.getTime());
 
   return ctx.mem.transaction(() => {
     ctx.mem.run(
-      `INSERT INTO nodes (id, type, title, body, status, surfacing, importance, props, origin, author, created, updated)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO nodes (id, type, title, body, status, surfacing, importance, props, origin, author, when_at, created, updated)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         input.type,
@@ -235,6 +240,7 @@ export function insertNode(ctx: Ctx, input: CreateInput, status: Status, actor: 
         JSON.stringify(props),
         input.origin,
         input.author ?? "",
+        whenAt,
         iso,
         iso,
       ],
@@ -297,6 +303,16 @@ function linkOnDay(ctx: Ctx, node: Node): void {
   insertEdge(ctx, node.id, day.id, "on_day", "", "system");
 }
 
+/** The public day-anchor verb (PLANNING.md): get-or-create the day node
+ * for a UTC date — the same node the creation anchor uses. Idempotent.
+ * Scheduling onto it is the host's explicit act:
+ * `link(task.id, day.id, "scheduled_on")` — a host edge type; `on_day`
+ * remains the system's creation anchor only. */
+export function dayAnchor(ctx: Ctx, date: string): Node {
+  const iso = parseStrictIso(date, "date");
+  return ensureDayNode(ctx, new Date(Date.parse(iso)));
+}
+
 // --- reads ---
 
 export function mustGet(ctx: Ctx, id: NodeId): Node {
@@ -333,7 +349,7 @@ export function neighborhood(ctx: Ctx, id: NodeId, asOf?: string): Node[] {
 export function updateNode(
   ctx: Ctx,
   id: NodeId,
-  patch: { title?: string; body?: string; props?: Props },
+  patch: { title?: string; body?: string; props?: Props; when?: string | null },
 ): Node {
   const node = mustGet(ctx, id);
   const t = typeRow(ctx, node.type);
@@ -351,6 +367,9 @@ export function updateNode(
     patch.props !== undefined
       ? applyTemplateAndValidate(t, nextBody, patch.props).props
       : (node.props as Record<string, unknown>);
+  // when: undefined = unchanged; null = clear; string = validated set (I17).
+  const nextWhen =
+    patch.when === undefined ? node.when : patch.when === null ? null : parseStrictIso(patch.when, "when");
 
   return ctx.mem.transaction(() => {
     // A retitle that lands on one of the node's own aliases makes that
@@ -360,10 +379,11 @@ export function updateNode(
       ctx.mem.run("DELETE FROM aliases WHERE node_id = ? AND alias = ?", [id, normalizeText(title)]);
     }
     snapshotHistory(ctx, node, "node.update", ""); // capture moment 1 of 3 (I16)
-    ctx.mem.run("UPDATE nodes SET title = ?, body = ?, props = ?, updated = ? WHERE id = ?", [
+    ctx.mem.run("UPDATE nodes SET title = ?, body = ?, props = ?, when_at = ?, updated = ? WHERE id = ?", [
       title,
       nextBody,
       JSON.stringify(nextProps),
+      nextWhen,
       ctx.now().toISOString(),
       id,
     ]);
@@ -439,6 +459,7 @@ export interface HistorySnapshot {
   readonly title: string;
   readonly body: string;
   readonly props: Props;
+  readonly when: string | null; // the pre-change scheduled moment (PLANNING.md)
   readonly actor: "owner" | "agent" | "system";
   readonly action: string;
   readonly origin: string;
@@ -456,14 +477,15 @@ export function snapshotHistory(ctx: Ctx, node: Node, action: string, origin: st
       [node.id],
     )?.s ?? 1;
   ctx.mem.run(
-    `INSERT INTO memory_history (node_id, seq, title, body, props, actor, action, origin, at)
-     VALUES (?, ?, ?, ?, ?, 'owner', ?, ?, ?)`,
+    `INSERT INTO memory_history (node_id, seq, title, body, props, when_at, actor, action, origin, at)
+     VALUES (?, ?, ?, ?, ?, ?, 'owner', ?, ?, ?)`,
     [
       node.id,
       seq,
       node.title,
       node.body,
       JSON.stringify(node.props),
+      node.when,
       action,
       origin,
       ctx.now().toISOString(),
@@ -483,12 +505,13 @@ export function history(ctx: Ctx, id: NodeId): HistorySnapshot[] {
       title: string;
       body: string;
       props: string;
+      when_at: string | null;
       actor: string;
       action: string;
       origin: string;
       at: string;
     }>(
-      `SELECT seq, title, body, props, actor, action, origin, at
+      `SELECT seq, title, body, props, when_at, actor, action, origin, at
        FROM memory_history WHERE node_id = ? ORDER BY seq ASC`,
       [id],
     )
@@ -497,6 +520,7 @@ export function history(ctx: Ctx, id: NodeId): HistorySnapshot[] {
       title: r.title,
       body: r.body,
       props: parseProps(r.props),
+      when: r.when_at,
       actor: r.actor as "owner" | "agent" | "system",
       action: r.action,
       origin: r.origin,

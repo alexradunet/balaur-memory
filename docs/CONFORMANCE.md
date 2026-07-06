@@ -35,10 +35,10 @@ can reimplement):
 ```
 
 - `steps` use a small op vocabulary mapping 1:1 to the public API
-  (`registerType, createNode, updateNode, link, closeEdge, transition,
-  touch, setSurfacing, propose, proposeEdit, decide, addAlias,
-  suggestIdentities, decideIdentity, putVector, quarantine, forget,
-  recordDerivation, rebuildIndex, reopenWithoutIndex`). `link` takes an
+  (`registerType, createNode, updateNode, link, closeEdge, dayAnchor,
+  transition, touch, setSurfacing, propose, proposeEdit, decide,
+  addAlias, suggestIdentities, decideIdentity, putVector, quarantine,
+  forget, recordDerivation, rebuildIndex, reopenWithoutIndex`). `link` takes an
   optional edge `type`, `context`, and `validity` window, and binds its
   Edge via `as` (so `closeEdge` can reference `@e.id`); `registerType`
   takes an optional `propsSchema`; a step with `expectError` asserts the
@@ -52,7 +52,8 @@ can reimplement):
   database, so the assertions read the database. `neighborhood` and
   `entityContext` take an optional `asOf` (TEMPORAL.md time travel);
   `history` asserts snapshot replays (length / bodiesInOrder / actions /
-  origins).
+  origins / whens); `agenda` asserts a window's titles in order
+  (PLANNING.md).
 - `clock` (plus optional per-step `advanceMs`) makes time-dependent
   behavior (recency decay, review_at, staleness) deterministic.
 
@@ -81,8 +82,9 @@ can reimplement):
 | `update-node` | retitle reconciles a now-equal alias; props replace wholesale; audited (I12) |
 | `temporal-siemens-years` | **I15**: declared validity, closeEdge + system-type refusals, asOf time travel |
 | `I16-history-forget` | **I16**: the three capture moments replayed; history dies with the tombstone; audit survives |
+| `planning-tuesday` | **I17**: declared appointments, the gated task flow, agenda windows + I2, reschedule replay, day anchors |
 
-Fifteen of sixteen invariants are scenario-pinned. The remaining one:
+Sixteen of seventeen invariants are scenario-pinned. The remaining one:
 
 - **I14 (single writer)** — by construction, not by scenario: one Store
   instance owns writes, WAL permits external readers. A conformance test

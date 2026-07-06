@@ -33,7 +33,7 @@ the part no existing memory library ships:
 
 1. **The schema** ([docs/SCHEMA.md](docs/SCHEMA.md)) — the durable,
    language-neutral contract: two SQLite files (`memory.db` the record,
-   `index.db` the disposable sidecar), sixteen numbered invariants, opened
+   `index.db` the disposable sidecar), seventeen numbered invariants, opened
    by any tool, any language, for decades. This is where the 40-year bet
    lives.
 2. **The TypeScript API** ([src/contract.ts](src/contract.ts)) — the
@@ -60,7 +60,11 @@ no_match permanence, and the bounded `entityContext` peer card for host
 prompts. The temporal arc (TEMPORAL.md) is complete too: declared
 edge-validity windows with `asOf` time travel ("this was true, and then
 it stopped" — dates in, never models), and owner-mutation memory history
-that dies with the tombstone. The library is fully standalone — no parent
+that dies with the tombstone. And the planning arc (PLANNING.md): a task
+is still a memory — `when_at` appointments, the `agenda` window, the
+doctor's due lens, and day anchors make nodes that happen to be tasks,
+events, and reminders first-class, with zero planning-specific machinery
+and no scheduler, ever. The library is fully standalone — no parent
 application, no host commitments: any host, present or future, builds on
 the schema contract and the TypeScript API.
 

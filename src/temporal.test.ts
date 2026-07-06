@@ -120,27 +120,31 @@ describe("edge validity (Phase A, I15)", () => {
     expect(store.neighborhood(keep.id, "2020-01-01").map((n) => n.title)).toEqual(["OldCo"]);
   });
 
-  test("a v2 store upgrades in place to v3 and keeps its data", () => {
+  test("an older store upgrades in place through every delta and keeps its data", () => {
     const a = store.createNode({ type: "person", title: "Upgrader", origin: "o" });
     store.close();
-    // wind the schema back to v2: drop the v3 artifacts a fresh store created
+    // wind the schema back to v2: drop everything v3 and v4 created
     const db = new Database(join(dir, "memory.db"));
     db.run("UPDATE meta SET value = '2' WHERE key = 'schema_version'");
     db.run("DROP TABLE memory_history");
     db.run("ALTER TABLE edges DROP COLUMN valid_from");
     db.run("ALTER TABLE edges DROP COLUMN valid_until");
+    db.run("DROP INDEX idx_nodes_when");
+    db.run("ALTER TABLE nodes DROP COLUMN when_at");
     db.close();
-    store = Store.open({ dir, now }); // migrates 2 → 3
+    store = Store.open({ dir, now }); // migrates 2 → 3 → 4
     const db2 = new Database(join(dir, "memory.db"), { readonly: true });
     const v = db2.query("SELECT value FROM meta WHERE key = 'schema_version'").get() as { value: string };
     const hist = db2.query("SELECT COUNT(*) AS c FROM memory_history").get() as { c: number };
     db2.close();
-    expect(v.value).toBe("3");
+    expect(v.value).toBe("4");
     expect(hist.c).toBe(0);
     expect(store.getNode(a.id).title).toBe("Upgrader"); // data survived
     const b = store.createNode({ type: "person", title: "Post-upgrade", origin: "o" });
-    const e = store.link(a.id, b.id, "knows", "", { from: "2026-01-01" }); // new columns work
+    const e = store.link(a.id, b.id, "knows", "", { from: "2026-01-01" }); // v3 columns work
     expect(e.validFrom).toBe("2026-01-01T00:00:00.000Z");
+    const c = store.createNode({ type: "person", title: "Scheduled", when: "2026-08-01", origin: "o" });
+    expect(c.when).toBe("2026-08-01T00:00:00.000Z"); // v4 column works
   });
 });
 

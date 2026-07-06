@@ -57,9 +57,11 @@ CREATE TABLE nodes (
   use_count  INTEGER NOT NULL DEFAULT 0,
   last_used  TEXT,                      -- null until first Touch
   review_at  TEXT,                      -- quarantine re-review date, else null
+  when_at    TEXT,                      -- (v4) the scheduled moment; null = undated (I17)
   created    TEXT NOT NULL,
   updated    TEXT NOT NULL
 ) STRICT;
+CREATE INDEX idx_nodes_when ON nodes(when_at) WHERE when_at IS NOT NULL;
 CREATE INDEX idx_nodes_type_status ON nodes(type, status);
 CREATE INDEX idx_nodes_status_imp  ON nodes(status, importance DESC);
 
@@ -137,6 +139,7 @@ CREATE TABLE memory_history (
   title   TEXT NOT NULL,
   body    TEXT NOT NULL,
   props   TEXT NOT NULL,
+  when_at TEXT,                       -- (v4) the pre-change scheduled moment
   actor   TEXT NOT NULL CHECK (actor IN ('owner','agent','system')),
   action  TEXT NOT NULL,
   origin  TEXT NOT NULL,
@@ -271,6 +274,15 @@ nodes.
   append-only otherwise — no other verb may delete it. Snapshots are
   taken at exactly three owner-authority moments: `updateNode`,
   `approve_edited`, and parked-edit application (TEMPORAL.md).
+- **I17 — Scheduled time is declared, never inferred.** (v4) `when_at` is
+  set only from explicit arguments (`createNode`/`propose`/`updateNode`/
+  verdict fields — the empty-string verdict field clears; `null` clears
+  via updateNode), strict ISO-8601 UTC via the shared rule. The library
+  never derives, shifts, or clears it on its own. `agenda(from, to)`
+  returns only `status='active' AND surfacing='always'` nodes in the
+  half-open window (I2: an agenda pull names nothing); the doctor's
+  `dueCandidates` lens excludes `never`-surfaced nodes (the F8 rule).
+  History snapshots carry the pre-change `when_at` (I16 unchanged).
 
 ## Deliberate schema choices
 

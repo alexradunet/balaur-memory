@@ -53,7 +53,15 @@ type Expect =
       peerTitlesInOrder?: string[];
       peerVia?: string[][];
     }
-  | { history: string; length?: number; bodiesInOrder?: string[]; actions?: string[]; origins?: string[] }
+  | {
+      history: string;
+      length?: number;
+      bodiesInOrder?: string[];
+      actions?: string[];
+      origins?: string[];
+      whens?: (string | null)[];
+    }
+  | { agenda: [string, string]; type?: string; titlesInOrder: string[] }
   | { neighborhood: string; titlesEqual: string[]; asOf?: string };
 
 const DIR = join(import.meta.dir);
@@ -121,6 +129,8 @@ for (const file of readdirSync(DIR).filter((f) => f.endsWith(".scenario.json")))
                   resolveRef(bindings, step["id"] as string) as Node["id"],
                   step["patch"] as Parameters<Store["updateNode"]>[1],
                 );
+              case "dayAnchor":
+                return store.dayAnchor(step["date"] as string);
               case "touch":
                 store.touch(resolveRef(bindings, step["id"] as string) as Node["id"]);
                 return undefined;
@@ -300,6 +310,12 @@ for (const file of readdirSync(DIR).filter((f) => f.endsWith(".scenario.json")))
               if (ex.bodiesInOrder !== undefined) expect(snaps.map((s) => s.body)).toEqual(ex.bodiesInOrder);
               if (ex.actions !== undefined) expect(snaps.map((s) => s.action)).toEqual(ex.actions);
               if (ex.origins !== undefined) expect(snaps.map((s) => s.origin)).toEqual(ex.origins);
+              if (ex.whens !== undefined) expect(snaps.map((s) => s.when)).toEqual(ex.whens);
+            } else if ("agenda" in ex) {
+              const got = store
+                .agenda(ex.agenda[0], ex.agenda[1], ex.type !== undefined ? { type: ex.type } : {})
+                .map((n) => n.title);
+              expect(got).toEqual(ex.titlesInOrder);
             } else {
               const node = bindings.get(ex.neighborhood);
               if (!node) throw new Error(`unbound ${ex.neighborhood}`);
