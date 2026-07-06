@@ -1,7 +1,10 @@
 /**
  * Zero-dependency lowercase ULID (SCHEMA.md I11): 48-bit millisecond
- * timestamp + 80 bits of randomness, Crockford base32, 26 chars. Lexical
- * order follows creation time (within-millisecond order is unspecified).
+ * timestamp + 80 bits of randomness, Crockford base32, 26 chars.
+ * Monotonic within a millisecond: same-ms calls increment the previous
+ * randomness, so lexical order follows creation order even at sub-ms
+ * write rates (review-2 F10). Per process — which is global under I14's
+ * single writer.
  */
 
 const ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz";
@@ -33,10 +36,30 @@ function encodeRandom(bytes: Uint8Array): string {
   return out; // 10 bytes = 80 bits = exactly 16 chars
 }
 
-/** Generate a lowercase ULID for the given moment (defaults to now). */
+let lastMs = -1;
+let lastRand: Uint8Array | null = null;
+
+/** Generate a lowercase ULID for the given moment (defaults to now).
+ * Repeated calls within one millisecond increment the previous 80-bit
+ * randomness (big-endian +1), keeping ids strictly ascending. An all-ones
+ * overflow wraps — vanishingly unlikely, and acceptable at personal scale. */
 export function ulid(nowMs: number = Date.now()): string {
+  if (nowMs === lastMs && lastRand !== null) {
+    for (let i = 9; i >= 0; i--) {
+      const v = lastRand[i] ?? 0;
+      if (v === 255) {
+        lastRand[i] = 0;
+      } else {
+        lastRand[i] = v + 1;
+        break;
+      }
+    }
+    return encodeTime(nowMs) + encodeRandom(lastRand);
+  }
   const rand = new Uint8Array(10);
   crypto.getRandomValues(rand);
+  lastMs = nowMs;
+  lastRand = rand;
   return encodeTime(nowMs) + encodeRandom(rand);
 }
 

@@ -203,6 +203,25 @@ describe("parseProps (review #7, #15)", () => {
   });
 });
 
+describe("review-2 fixes", () => {
+  test("decide() on an identity-question node points at decideIdentity (F9)", () => {
+    const a = store.createNode({ type: "note", title: "Twin Fact", origin: "t" });
+    store.createNode({ type: "note", title: "twin fact", origin: "t" });
+    store.suggestIdentities("note");
+    expect(() => store.decide(a.id, { kind: "approve" })).toThrow("decideIdentity");
+  });
+
+  test("ULIDs are strictly ascending within one millisecond (F10, I11)", async () => {
+    const { ulid } = await import("./storage/ulid.ts");
+    const ids = Array.from({ length: 50 }, () => ulid(1751712000000));
+    for (let i = 1; i < ids.length; i++) {
+      const prev = ids[i - 1] ?? "";
+      const cur = ids[i] ?? "";
+      expect(cur > prev).toBe(true);
+    }
+  });
+});
+
 describe("audit stays content-free — structural (review I7/#15)", () => {
   test("sentinel content through every verb never reaches the audit log", () => {
     const S = "XSENTINELX"; // appears in every content field below

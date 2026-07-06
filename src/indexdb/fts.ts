@@ -52,7 +52,10 @@ export function deleteFts(idx: SqlDb, id: string): void {
   idx.run("DELETE FROM nodes_fts WHERE id = ?", [id]);
 }
 
-/** Drop and refill from the source of truth. Idempotent; safe any time. */
+/** Drop and refill from the source of truth. Idempotent; safe any time.
+ * Alias text is ORDER BY alias to match aliasTextFor exactly — I13 says
+ * "reconstructs exactly", and GROUP_CONCAT without ORDER BY is arbitrary
+ * (review-2 F6). */
 export function rebuildFts(idx: SqlDb, mem: SqlDb): void {
   idx.transaction(() => {
     idx.run("DELETE FROM nodes_fts");
@@ -65,7 +68,7 @@ export function rebuildFts(idx: SqlDb, mem: SqlDb): void {
       als: string;
     }>(
       `SELECT n.id, n.type, n.title, n.body, n.props,
-              COALESCE(GROUP_CONCAT(a.alias, ' '), '') AS als
+              COALESCE(GROUP_CONCAT(a.alias, ' ' ORDER BY a.alias), '') AS als
        FROM nodes n LEFT JOIN aliases a ON a.node_id = n.id
        WHERE n.status = 'active' GROUP BY n.id`,
     );

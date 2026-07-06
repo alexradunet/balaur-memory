@@ -35,11 +35,12 @@ can reimplement):
 ```
 
 - `steps` use a small op vocabulary mapping 1:1 to the public API
-  (`registerType, createNode, link, transition, touch, setSurfacing,
-  propose, proposeEdit, decide, addAlias, suggestIdentities,
+  (`registerType, createNode, updateNode, link, transition, touch,
+  setSurfacing, propose, proposeEdit, decide, addAlias, suggestIdentities,
   decideIdentity, putVector, quarantine, forget, recordDerivation,
   rebuildIndex, reopenWithoutIndex`). `link` takes an optional edge
-  `type` and `context`; a step with `expectError` asserts the op throws.
+  `type` and `context`; `registerType` takes an optional `propsSchema`;
+  a step with `expectError` asserts the op throws.
 - `as` binds returned nodes/outcomes/reports to names later steps and
   expectations reference (`@name` / `@name.id`).
 - `expect` entries assert bound values (`bound`), ranked reads (`recall`,
@@ -58,18 +59,21 @@ can reimplement):
 | `golden-I1-consent-boundary` | I1 (both halves), I10, hint kinds |
 | `I2-recall-surfacing` | I2 (always/ask/never across recall) |
 | `I2-consent-surfaces` | I2 on the gate + hints (no exists_active oracle for `never`) |
-| `I3-neighborhood-active-only` | I3 |
+| `I3-neighborhood-active-only` | I3 + I2 on traversal (never/day excluded, ask included) |
 | `golden-I4-audn-gate` | I4 (created / merged_pending / exists_active) |
 | `golden-I5-supersede` | I5 + the I2 composition (superseded leaves ambient recall) |
-| `I6-forget-cascade` | I6, I7 (content-free log probe), I8 (post-forget terminality) |
+| `I6-forget-cascade` | I6 incl. identity_pending completeness, I7 (content-free log probe), I8 |
 | `I8-fsm-terminality-and-guards` | I8 (guarded targets) |
 | `I9-apple-photos` | I9, both halves: never re-proposed; merge refused either order |
 | `I11-ids-and-timestamps` | I11 |
 | `I12-audit-coverage` | I12, I7 |
-| `I13-index-disposability` | I13 (delete → reopen → rebuild → identical recall) |
+| `I13-index-disposability` | I13 (delete → reopen → rebuild → identical recall, byte-exact `extra`) |
 | `entities-questions` | R1–R3 evidence priority, exclusions, idempotent re-runs (I2) |
 | `golden-two-anas-merge` | the compound merge: rewire/fold/chain/husk, I7 through it, I2 recall |
 | `entity-context-peer-card` | the bounded peer card: I2/I3 filtering, recency order, edges included |
+| `merge-adversarial-edges` | **I9 under merge**: no_match never transplants; self-loops die; chains flatten |
+| `consent-schema-enforcement` | the decide path coerces + validates props against the type schema (I5) |
+| `update-node` | retitle reconciles a now-equal alias; props replace wholesale; audited (I12) |
 
 Thirteen of fourteen invariants are scenario-pinned. The remaining one:
 

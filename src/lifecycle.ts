@@ -106,6 +106,9 @@ export function forget(ctx: Ctx, id: NodeId): ForgetReport {
     edgesDropped = ctx.mem.run("DELETE FROM edges WHERE source = ? OR target = ?", [id, id]).changes;
     ctx.mem.run("DELETE FROM pending_edits WHERE node_id = ?", [id]); // envelopes carry content too
     ctx.mem.run("DELETE FROM aliases WHERE node_id = ?", [id]); // aliases are content (I6 v2 amendment)
+    // Open identity questions about a tombstone are moot — the cascade
+    // clears every pending table it touches, this one included (review-2 F5).
+    ctx.mem.run("DELETE FROM identity_pending WHERE a = ? OR b = ?", [id, id]);
     flaggedStale = flagStaleBySource(ctx, id);
     ctx.mem.run("DELETE FROM derivations WHERE artifact = ?", [id]); // if it WAS derived, its lineage goes with it
     ctx.mem.run(

@@ -1,0 +1,58 @@
+{
+  "name": "the consent boundary enforces the type's props schema: verdict fields coerce, invalid values refuse",
+  "invariants": ["I5"],
+  "clock": "2026-07-05T12:00:00.000Z",
+  "steps": [
+    {
+      "op": "registerType",
+      "name": "memory",
+      "bornStatus": "proposed",
+      "propsSchema": { "amount": { "type": "number", "required": true } }
+    },
+    {
+      "op": "propose",
+      "proposal": {
+        "type": "memory",
+        "title": "No amount at all",
+        "body": "",
+        "origin": "t"
+      },
+      "expectError": "props_invalid"
+    },
+    {
+      "op": "propose",
+      "as": "p1",
+      "proposal": {
+        "type": "memory",
+        "title": "Budget fact",
+        "body": "",
+        "props": { "amount": 100 },
+        "origin": "t"
+      }
+    },
+    {
+      "op": "decide",
+      "id": "@p1.id",
+      "decision": { "kind": "approve_edited", "fields": { "amount": "not-a-number" } },
+      "expectError": "props_invalid"
+    },
+    {
+      "op": "decide",
+      "id": "@p1.id",
+      "decision": { "kind": "approve_edited", "fields": { "amount": "250" } }
+    }
+  ],
+  "expect": [
+    { "sql": "SELECT status FROM nodes WHERE id = ?", "params": ["@p1.id"], "equals": "active" },
+    {
+      "sql": "SELECT json_extract(props, '$.amount') FROM nodes WHERE id = ?",
+      "params": ["@p1.id"],
+      "equals": 250
+    },
+    {
+      "sql": "SELECT json_type(props, '$.amount') FROM nodes WHERE id = ?",
+      "params": ["@p1.id"],
+      "equals": "integer"
+    }
+  ]
+}

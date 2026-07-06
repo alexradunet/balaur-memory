@@ -85,6 +85,13 @@ for (const file of readdirSync(DIR).filter((f) => f.endsWith(".scenario.json")))
                 store.registerType({
                   name: step["name"] as string,
                   bornStatus: step["bornStatus"] as "active" | "proposed",
+                  ...(step["propsSchema"] !== undefined
+                    ? {
+                        propsSchema: step["propsSchema"] as NonNullable<
+                          Parameters<Store["registerType"]>[0]["propsSchema"]
+                        >,
+                      }
+                    : {}),
                 });
                 return undefined;
               case "createNode":
@@ -101,6 +108,11 @@ for (const file of readdirSync(DIR).filter((f) => f.endsWith(".scenario.json")))
                 return store.transition(
                   resolveRef(bindings, step["id"] as string) as Node["id"],
                   step["to"] as Parameters<Store["transition"]>[1],
+                );
+              case "updateNode":
+                return store.updateNode(
+                  resolveRef(bindings, step["id"] as string) as Node["id"],
+                  step["patch"] as Parameters<Store["updateNode"]>[1],
                 );
               case "touch":
                 store.touch(resolveRef(bindings, step["id"] as string) as Node["id"]);

@@ -27,6 +27,8 @@ ratification.
 | entities B — questions | deterministic rules R1–R3, suggestIdentities, the Pending tagged union (v0.2.0) | DONE (PR #11) |
 | entities C — verdicts | decideIdentity: the compound merge + no_match permanence (I9, both halves), merged joins the forgettable set (I8) | DONE (PR #12) |
 | entities D — the peer card | entityContext: the bounded, edge-carrying disambiguation primitive | DONE (PR #13) |
+| standalone | every parent-app reference removed; MIGRATION.md → HISTORY.md | DONE (PR #14) |
+| hardening 2 — cold-review fix batch | 12 findings: no_match transplant (I9), neighborhood surfacing (I2/I3), consent schema enforcement, merge self-loops, forget completeness, I13 byte-exactness, monotonic ULIDs, doc reconciliations | in review (PR #15) |
 
 13 of 14 invariants are conformance-pinned (I14, single writer, holds by
 construction). `Store implements StoreContract` is compiler-checked.
