@@ -29,7 +29,8 @@ ratification.
 | entities D — the peer card | entityContext: the bounded, edge-carrying disambiguation primitive | DONE (PR #13) |
 | standalone | every parent-app reference removed; MIGRATION.md → HISTORY.md | DONE (PR #14) |
 | hardening 2 — cold-review fix batch | 12 findings: no_match transplant (I9), neighborhood surfacing (I2/I3), consent schema enforcement, merge self-loops, forget completeness, I13 byte-exactness, monotonic ULIDs, doc reconciliations | DONE (PR #15, merged; tagged v0.2.3) |
-| temporal — design doc (TEMPORAL.md) | bi-temporal edge validity + forget-aware memory history; I15/I16 | in review (PR #16) |
+| temporal — design doc (TEMPORAL.md) | bi-temporal edge validity + forget-aware memory history; I15/I16 | DONE (PR #16, merged) |
+| temporal A — validity | schema v3, link validity windows, closeEdge (I15), asOf time travel on traversal + the peer card | in review (PR #17) |
 
 13 of 14 invariants are conformance-pinned (I14, single writer, holds by
 construction). `Store implements StoreContract` is compiler-checked.

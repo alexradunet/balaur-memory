@@ -1,0 +1,70 @@
+{
+  "name": "the Siemens years: facts end without dying — closeEdge, validity windows, asOf time travel (I15)",
+  "invariants": ["I15"],
+  "clock": "2026-07-05T12:00:00.000Z",
+  "steps": [
+    { "op": "registerType", "name": "person", "bornStatus": "active" },
+    { "op": "registerType", "name": "org", "bornStatus": "active" },
+    { "op": "createNode", "as": "ana", "input": { "type": "person", "title": "Ana Popescu", "origin": "o" } },
+    { "op": "createNode", "as": "siemens", "input": { "type": "org", "title": "Siemens", "origin": "o" } },
+    {
+      "op": "createNode",
+      "as": "bitdef",
+      "input": { "type": "org", "title": "Bitdefender", "origin": "o" }
+    },
+    {
+      "op": "link",
+      "as": "job1",
+      "source": "@ana.id",
+      "target": "@siemens.id",
+      "type": "works_at",
+      "context": "first job",
+      "validity": { "from": "2021-03-01" }
+    },
+    { "op": "closeEdge", "id": "@job1.id", "until": "2026-01-31" },
+    { "op": "closeEdge", "id": "@job1.id", "expectError": "conflict" },
+    {
+      "op": "link",
+      "source": "@ana.id",
+      "target": "@bitdef.id",
+      "type": "works_at",
+      "validity": { "from": "2026-02-01" }
+    },
+    { "op": "createNode", "as": "x", "input": { "type": "person", "title": "X Person", "origin": "o" } },
+    { "op": "createNode", "as": "y", "input": { "type": "person", "title": "Y Person", "origin": "o" } },
+    { "op": "link", "as": "nm", "source": "@x.id", "target": "@y.id", "type": "no_match" },
+    { "op": "closeEdge", "id": "@nm.id", "expectError": "conflict" },
+    {
+      "op": "link",
+      "source": "@x.id",
+      "target": "@y.id",
+      "type": "knows",
+      "validity": { "from": "2030-01-01", "until": "2029-01-01" },
+      "expectError": "props_invalid"
+    }
+  ],
+  "expect": [
+    { "neighborhood": "ana", "titlesEqual": ["Bitdefender"] },
+    { "neighborhood": "ana", "asOf": "2024-06-15T12:00:00.000Z", "titlesEqual": ["Siemens"] },
+    { "neighborhood": "ana", "asOf": "2020-01-01T00:00:00.000Z", "titlesEqual": [] },
+    { "entityContext": "ana", "peerTitlesInOrder": ["Bitdefender"], "peerVia": [["works_at"]] },
+    {
+      "entityContext": "ana",
+      "asOf": "2024-06-15T12:00:00.000Z",
+      "peerTitlesInOrder": ["Siemens"],
+      "peerVia": [["works_at"]]
+    },
+    {
+      "sql": "SELECT valid_until FROM edges WHERE id = ?",
+      "params": ["@job1.id"],
+      "equals": "2026-01-31T00:00:00.000Z"
+    },
+    {
+      "sql": "SELECT valid_from FROM edges WHERE id = ?",
+      "params": ["@job1.id"],
+      "equals": "2021-03-01T00:00:00.000Z"
+    },
+    { "sql": "SELECT COUNT(*) FROM audit_log WHERE action = 'edge.close'", "equals": 1 },
+    { "sql": "SELECT COUNT(*) FROM edges WHERE type = 'works_at'", "equals": 2 }
+  ]
+}

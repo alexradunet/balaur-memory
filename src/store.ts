@@ -22,7 +22,7 @@ import * as spine from "./spine.ts";
 import type { OpenDb } from "./storage/adapter.ts";
 import { openBunDb } from "./storage/bun.ts";
 import { migrateIndexDb, migrateMemoryDb } from "./storage/schema.ts";
-import type { Edge, Props } from "./types.ts";
+import type { Edge, EdgeId, Props } from "./types.ts";
 import {
   MemoryError,
   type Node,
@@ -117,12 +117,17 @@ export class Store implements StoreContract {
     return spine.updateNode(this.guard(), id, patch);
   }
 
-  link(source: NodeId, target: NodeId, type = "links", context = ""): Edge {
-    return spine.insertEdge(this.guard(), source, target, type, context, "owner");
+  link(source: NodeId, target: NodeId, type = "links", context = "", validity?: spine.Validity): Edge {
+    return spine.insertEdge(this.guard(), source, target, type, context, "owner", validity);
   }
 
-  neighborhood(id: NodeId): Node[] {
-    return spine.neighborhood(this.guard(), id);
+  /** This fact stopped being true — validity closes, the row stays (TEMPORAL.md, I15). */
+  closeEdge(id: EdgeId, until?: string): Edge {
+    return spine.closeEdge(this.guard(), id, until);
+  }
+
+  neighborhood(id: NodeId, asOf?: string): Node[] {
+    return spine.neighborhood(this.guard(), id, asOf);
   }
 
   // --- lifecycle primitives (Phase 1 scope) ---
@@ -238,9 +243,10 @@ export class Store implements StoreContract {
   }
 
   /** The bounded peer card — disambiguation context for host prompts
-   * (ENTITIES.md, Phase D). Pure read; hosts own token budgets. */
-  entityContext(id: NodeId, limit?: number): entities.EntityContext {
-    return entities.entityContext(this.guard(), id, limit);
+   * (ENTITIES.md, Phase D). Pure read; hosts own token budgets. The world
+   * defaults to now; asOf time-travels (TEMPORAL.md). */
+  entityContext(id: NodeId, limit?: number, asOf?: string): entities.EntityContext {
+    return entities.entityContext(this.guard(), id, limit, asOf);
   }
 
   // --- lineage (landed with the cascade; SCHEMA.md derivations) ---

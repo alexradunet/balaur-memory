@@ -50,6 +50,9 @@ export interface Node {
 /**
  * A typed link between nodes. System edge types the library itself writes:
  * on_day, supersedes, merged_into, no_match, derived_from (SCHEMA.md table).
+ * `created` is transaction time (when the library learned it); validFrom/
+ * validUntil are world time (when it was true — TEMPORAL.md): null from =
+ * undated, null until = still true. System edge types are timeless (I15).
  */
 export interface Edge {
   readonly id: EdgeId;
@@ -58,6 +61,8 @@ export interface Edge {
   readonly type: string;
   readonly context: string;
   readonly created: string;
+  readonly validFrom: string | null;
+  readonly validUntil: string | null;
 }
 
 export const SYSTEM_EDGE_TYPES = ["on_day", "supersedes", "merged_into", "no_match", "derived_from"] as const;
@@ -87,6 +92,21 @@ export interface AuditEntry {
  * collapsed whitespace. One rule everywhere identity is compared. */
 export function normalizeText(s: string): string {
   return s.toLowerCase().split(/\s+/).filter(Boolean).join(" ");
+}
+
+/** Strict ISO-8601 UTC (the reviewAt rule): full timestamp or date-only
+ * (which becomes midnight UTC). Lenient Date.parse silently timezone-
+ * shifts human-ish strings — refused here. Returns the normalized ISO
+ * string or throws props_invalid. One rule everywhere time is declared. */
+export function parseStrictIso(s: string, what: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{3})?Z)?$/.test(s))
+    throw new MemoryError(
+      "props_invalid",
+      `${what} must be ISO-8601 UTC (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS[.mmm]Z)`,
+    );
+  const ms = Date.parse(s.length === 10 ? `${s}T00:00:00.000Z` : s);
+  if (Number.isNaN(ms)) throw new MemoryError("props_invalid", `${what} is not a real date`);
+  return new Date(ms).toISOString();
 }
 
 /**

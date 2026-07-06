@@ -1,7 +1,10 @@
 # TEMPORAL.md — time as truth: edge validity + memory history (design)
 
-- **Status:** DRAFT — awaiting owner ratification of the open questions
-  below. Phases begin after this document merges.
+- **Status:** RATIFIED — the owner confirmed all five open questions
+  (primitive `closeEdge` only; no auto-close on supersede; the three
+  capture moments; `asOf` defaults to the currently-valid world; no undo
+  verb). **Phase A (validity) shipped in PR #17** with schema v3 and
+  v0.3.0. Phase B (history) remains.
 - **Ships as:** **schema_version 3** and **v0.3.0**. No API-breaking
   changes: two new columns, one new table, two new verbs, optional
   parameters on three existing reads.

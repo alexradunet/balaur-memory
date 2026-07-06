@@ -11,7 +11,8 @@
 import type { Conflict, Decision, Outcome, Pending, Proposal } from "./consent.ts";
 import type { EntityContext } from "./entities.ts";
 import type { ForgetReport } from "./lifecycle.ts";
-import type { Edge, Node, NodeId, NodeTypeSpec, Props, Status, Surfacing } from "./types.ts";
+import type { Validity } from "./spine.ts";
+import type { Edge, EdgeId, Node, NodeId, NodeTypeSpec, Props, Status, Surfacing } from "./types.ts";
 
 /** Tunables for the recall ranking blend; conformance pins the defaults. */
 export interface RankingConfig {
@@ -62,9 +63,18 @@ export interface StoreContract {
   /** Edit an ACTIVE owner-authored node in place. */
   updateNode(id: NodeId, patch: { title?: string; body?: string; props?: Props }): Node;
   /** Idempotent on (source, target, type). */
-  link(source: NodeId, target: NodeId, type?: string, context?: string): Edge;
+  /** Idempotent on (source, target, type). Optional world-time validity
+   * window (TEMPORAL.md): declared, never inferred (I15); strict ISO;
+   * system edge types refuse it. */
+  link(source: NodeId, target: NodeId, type?: string, context?: string, validity?: Validity): Edge;
+  /** This fact stopped being true: sets valid_until (default now), keeps
+   * the row. Refuses system edge types (I15), already-closed edges, and
+   * until <= valid_from. */
+  closeEdge(id: EdgeId, until?: string): Edge;
   /** 1-hop active set (I3). */
-  neighborhood(id: NodeId): Node[];
+  /** 1-hop active set (I3, I2 on traversal), currently-valid edges by
+   * default; asOf time-travels the world (TEMPORAL.md). */
+  neighborhood(id: NodeId, asOf?: string): Node[];
 
   // --- the consent boundary ---
 
@@ -129,7 +139,7 @@ export interface StoreContract {
    * active, always-surfaced neighborhood ranked by recency, hard-capped —
    * each peer carrying the raw edges that connect it, so hosts can render
    * "Ana — sister_of — …". A pure read: nothing audited, touched, written. */
-  entityContext(id: NodeId, limit?: number): EntityContext;
+  entityContext(id: NodeId, limit?: number, asOf?: string): EntityContext;
 
   // --- lineage & vectors & measurement ---
 

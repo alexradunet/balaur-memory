@@ -10,7 +10,7 @@ import { deleteVectorsFor } from "./indexdb/vectors.ts";
 import { flagStaleBySource } from "./lineage.ts";
 import { lexicalCandidates, termsFromText } from "./recall.ts";
 import { audit, type Ctx, mustGet } from "./spine.ts";
-import { MemoryError, type NodeId } from "./types.ts";
+import { MemoryError, type NodeId, parseStrictIso } from "./types.ts";
 
 /**
  * Quarantine: actively suppressed everywhere — recall, search, traversal,
@@ -23,19 +23,8 @@ export function quarantine(ctx: Ctx, id: NodeId, reviewAt?: string): void {
   const node = mustGet(ctx, id);
   if (node.status !== "active")
     throw new MemoryError("invalid_transition", `cannot quarantine ${id} from ${node.status}`);
-  let review: string | null = null;
-  if (reviewAt !== undefined) {
-    // Strict ISO-8601 UTC only — lenient Date.parse silently timezone-shifts
-    // human-ish strings ("January 1, 2020" → the prior evening) (review #9).
-    if (!/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{3})?Z)?$/.test(reviewAt))
-      throw new MemoryError(
-        "props_invalid",
-        "reviewAt must be ISO-8601 UTC (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS[.mmm]Z)",
-      );
-    const ms = Date.parse(reviewAt.length === 10 ? `${reviewAt}T00:00:00.000Z` : reviewAt);
-    if (Number.isNaN(ms)) throw new MemoryError("props_invalid", "reviewAt is not a real date");
-    review = new Date(ms).toISOString();
-  }
+  // Strict ISO-8601 UTC only (review #9) — the shared time rule (TEMPORAL.md).
+  const review = reviewAt !== undefined ? parseStrictIso(reviewAt, "reviewAt") : null;
   ctx.mem.run("UPDATE nodes SET status = 'quarantined', review_at = ?, updated = ? WHERE id = ?", [
     review,
     ctx.now().toISOString(),

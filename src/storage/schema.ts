@@ -7,7 +7,7 @@
 import type { SqlDb } from "./adapter.ts";
 import { ulid } from "./ulid.ts";
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 const MEMORY_DDL = `
 PRAGMA journal_mode = WAL;
@@ -123,6 +123,28 @@ CREATE TABLE IF NOT EXISTS identity_pending (
 ) STRICT;
 `;
 
+// --- v3: the temporal arc (docs/TEMPORAL.md) ---
+// Edges gain world-time validity (NULL from = undated; NULL until = still
+// true — the honest reading of every pre-v3 edge). memory_history lands in
+// the same bump; its writers arrive with Phase B.
+const V3_DDL = `
+ALTER TABLE edges ADD COLUMN valid_from  TEXT;
+ALTER TABLE edges ADD COLUMN valid_until TEXT;
+
+CREATE TABLE IF NOT EXISTS memory_history (
+  node_id TEXT NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+  seq     INTEGER NOT NULL,
+  title   TEXT NOT NULL,
+  body    TEXT NOT NULL,
+  props   TEXT NOT NULL,
+  actor   TEXT NOT NULL CHECK (actor IN ('owner','agent','system')),
+  action  TEXT NOT NULL,
+  origin  TEXT NOT NULL,
+  at      TEXT NOT NULL,
+  PRIMARY KEY (node_id, seq)
+) STRICT;
+`;
+
 /** Apply the memory.db baseline + versioned deltas (idempotent). Fresh
  * stores land directly on SCHEMA_VERSION; older stores upgrade in order.
  * Never edit an applied delta — append and bump (CODING.md). */
@@ -131,6 +153,7 @@ export function migrateMemoryDb(db: SqlDb, now: () => Date): void {
   const version = db.get<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'");
   if (version === null) {
     db.exec(V2_DDL);
+    db.exec(V3_DDL);
     const at = now().toISOString();
     db.run("INSERT INTO meta (key, value) VALUES ('schema_version', ?)", [String(SCHEMA_VERSION)]);
     db.run("INSERT INTO meta (key, value) VALUES ('store_id', ?)", [ulid(now().getTime())]);
@@ -141,6 +164,10 @@ export function migrateMemoryDb(db: SqlDb, now: () => Date): void {
   if (v < 2) {
     db.exec(V2_DDL);
     db.run("UPDATE meta SET value = '2' WHERE key = 'schema_version'");
+  }
+  if (v < 3) {
+    db.exec(V3_DDL);
+    db.run("UPDATE meta SET value = '3' WHERE key = 'schema_version'");
   }
 }
 

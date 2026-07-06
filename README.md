@@ -33,7 +33,7 @@ the part no existing memory library ships:
 
 1. **The schema** ([docs/SCHEMA.md](docs/SCHEMA.md)) — the durable,
    language-neutral contract: two SQLite files (`memory.db` the record,
-   `index.db` the disposable sidecar), fourteen numbered invariants, opened
+   `index.db` the disposable sidecar), sixteen numbered invariants, opened
    by any tool, any language, for decades. This is where the 40-year bet
    lives.
 2. **The TypeScript API** ([src/contract.ts](src/contract.ts)) — the
