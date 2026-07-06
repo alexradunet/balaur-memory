@@ -47,11 +47,15 @@ place for a life to land.
 
 ## Status
 
-**Phase 0.5 — full design, pre-implementation.** The contract, schema,
-coding rules, and conformance design are in review; implementation lands
-piece by piece per [docs/MIGRATION.md](docs/MIGRATION.md). Balaur remains
-the design source and keeps its own in-tree Go memory layer; the projects
-share lineage and (optionally, later) a schema — not code.
+**Feature-complete core (v0.1).** All five phases are implemented and
+verified — the spine, recall (blend + vector fusion), the consent gate
+(AUDN routing, queue, four verdicts incl. supersede), lifecycle end-states
+(quarantine, the honest forget cascade), lineage, and the metadata-only
+doctor. `Store implements StoreContract` is compiler-checked; 12 of 14
+schema invariants are pinned by the conformance suite (I9 reserved for
+entity resolution, I14 by construction). Balaur remains the design source
+and keeps its own in-tree Go memory layer; the projects share lineage and
+(optionally, later) a schema — not code.
 
 ## Docs
 

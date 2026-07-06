@@ -84,6 +84,6 @@ cheap.
 | 1 spine | DONE (PR #3, merged) |
 | 2 recall | DONE (PR #4, merged) |
 | 3 consent gate | DONE (PR #5, merged) |
-| 4 lifecycle | in review (PR #6) |
-| 5 doctor | not started (lineage verbs landed with the Phase 4 cascade) |
+| 4 lifecycle | DONE (PR #6, merged) |
+| 5 doctor | in review (PR #7) |
 | 6 interop | open by design |

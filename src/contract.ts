@@ -53,6 +53,7 @@ export interface StoreContract {
     body?: string;
     props?: Props;
     importance?: number;
+    surfacing?: Surfacing;
     origin: string;
     author?: string;
   }): Node;

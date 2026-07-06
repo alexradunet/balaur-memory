@@ -46,20 +46,35 @@ can reimplement):
 - `clock` (plus optional per-step `advance`) makes time-dependent behavior
   (recency decay, review_at, staleness) deterministic.
 
-## Coverage map (grows with the phases)
+## Coverage map (feature-complete, v0.1)
 
-| Area | Scenarios pin | Invariants |
-|---|---|---|
-| Consent | born statuses, gate routing, decide verbs incl. approve-superseding order | I1, I4, I5, I12 |
-| Recall | surfacing filter, ranking-blend order with pinned defaults, vector fusion with a literal query vector, empty-result honesty | I2 |
-| Graph | traversal filters, system edges, no_match permanence | I3, I9 |
-| Lifecycle | quarantine reachability, forget tombstone + edge drop + index scrub + stale flags, terminality | I6, I7, I8 |
-| Lineage | derivation staleness propagation | I10 |
-| Store | id/timestamp formats, index disposability (delete index.db → rebuild → identical recall results) | I11, I13 |
+| Scenario | Invariants pinned |
+|---|---|
+| `I1-owner-writes-born-active` | I1 (owner half), I10 |
+| `golden-I1-consent-boundary` | I1 (both halves), I10, hint kinds |
+| `I2-recall-surfacing` | I2 (always/ask/never across recall) |
+| `I3-neighborhood-active-only` | I3 |
+| `golden-I4-audn-gate` | I4 (created / merged_pending / exists_active) |
+| `golden-I5-supersede` | I5 + the I2 composition (superseded leaves ambient recall) |
+| `I6-forget-cascade` | I6, I7 (content-free log probe), I8 (post-forget terminality) |
+| `I8-fsm-terminality-and-guards` | I8 (guarded targets) |
+| `I11-ids-and-timestamps` | I11 |
+| `I12-audit-coverage` | I12, I7 |
+| `I13-index-disposability` | I13 (delete → reopen → rebuild → identical recall) |
 
-Golden recall fixtures (the believable personal set from balaur plan 261 —
-owner, sister Ana, dog Rex, employer, constraints) live here as the recall
-scenarios: seed N memories, assert query X surfaces memory Y and not Z.
+Twelve of fourteen invariants are scenario-pinned. The remaining two:
+
+- **I9 (no_match permanence)** — reserved. The `no_match` edge type and its
+  semantics are contract, but nothing in the core library *writes* one yet;
+  the producer arrives with entity resolution (a people-graph feature, out
+  of the v0.1 core). The scenario lands with the producer.
+- **I14 (single writer)** — by construction, not by scenario: one Store
+  instance owns writes, WAL permits external readers. A conformance test
+  cannot prove host discipline; the invariant documents it.
+
+The `doctor()` report is covered by unit tests (`src/doctor.test.ts`)
+rather than scenarios — it reads state and never mutates, so there is no
+invariant to pin, only math and wording to keep honest.
 
 ## Rules
 

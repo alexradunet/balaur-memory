@@ -1,6 +1,6 @@
 {
   "name": "balaur-memory",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "A consent-gated, lineage-tracked, forgettable memory layer for personal AI. One SQLite file, no services, no models.",
   "license": "AGPL-3.0-or-later",
   "type": "module",
