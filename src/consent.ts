@@ -16,6 +16,7 @@
 import { type IdentityEvidence, identityPending } from "./entities.ts";
 import { lexicalCandidates, termsFromText, titleNamed } from "./recall.ts";
 import {
+  applyTemplateAndValidate,
   audit,
   type Ctx,
   insertEdge,
@@ -258,7 +259,7 @@ function editEnvelopeFor(ctx: Ctx, id: NodeId): EditEnvelope | null {
 export function pendingQueue(ctx: Ctx): Pending[] {
   const out: Pending[] = [];
   const proposed = ctx.mem.query<{ id: string }>(
-    "SELECT id FROM nodes WHERE status = 'proposed' ORDER BY created ASC",
+    "SELECT id FROM nodes WHERE status = 'proposed' ORDER BY created ASC, id ASC",
   );
   for (const r of proposed) {
     const node = mustGet(ctx, r.id as NodeId);
@@ -266,7 +267,7 @@ export function pendingQueue(ctx: Ctx): Pending[] {
   }
   const edits = ctx.mem.query<{ node_id: string }>(
     `SELECT pe.node_id FROM pending_edits pe JOIN nodes n ON n.id = pe.node_id
-     WHERE n.status = 'active' ORDER BY pe.created ASC`,
+     WHERE n.status = 'active' ORDER BY pe.created ASC, pe.node_id ASC`,
   );
   for (const r of edits) {
     const node = mustGet(ctx, r.node_id as NodeId);
@@ -317,9 +318,19 @@ export function conflictsFor(ctx: Ctx, id: NodeId): Conflict[] {
 // --- decisions (I5) ---
 
 /** Whitelisted verdict-field application: title/body/importance are columns,
- * anything else lands in props as a string. */
+ * anything else lands in props. Verdict fields arrive as strings, so props
+ * DECLARED in the type's schema are coerced to their declared primitive
+ * (number/boolean) — undeclared keys stay strings — and the assembled props
+ * then pass the same schema validation every other write path runs
+ * (review-2 F3: the consent boundary must not be the one write that can
+ * mint a schema-violating node). */
 function applyFields(ctx: Ctx, id: NodeId, fields: Readonly<Record<string, string>>): Node {
   const node = mustGet(ctx, id);
+  const t = typeRow(ctx, node.type);
+  const schema = JSON.parse(t.props_schema) as Record<
+    string,
+    { type: "string" | "number" | "boolean"; required?: boolean }
+  >;
   let title = node.title;
   let body = node.body;
   let importance = node.importance;
@@ -336,14 +347,29 @@ function applyFields(ctx: Ctx, id: NodeId, fields: Readonly<Record<string, strin
         throw new MemoryError("props_invalid", "importance must be an integer between 0 and 5");
       importance = n;
     } else {
-      props[key] = value;
+      const def = schema[key];
+      if (def === undefined || def.type === "string") {
+        props[key] = value;
+      } else if (def.type === "number") {
+        const n = Number(value);
+        if (value.trim() === "" || !Number.isFinite(n))
+          throw new MemoryError("props_invalid", `prop ${JSON.stringify(key)} must be a number`);
+        props[key] = n;
+      } else {
+        if (value !== "true" && value !== "false")
+          throw new MemoryError("props_invalid", `prop ${JSON.stringify(key)} must be a boolean`);
+        props[key] = value === "true";
+      }
     }
   }
+  // Same validator as birth and updateNode; template body-fill stays a
+  // birth-only semantic — the edited body is used as-is.
+  const checked = applyTemplateAndValidate(t, body, props);
   ctx.mem.run("UPDATE nodes SET title = ?, body = ?, importance = ?, props = ?, updated = ? WHERE id = ?", [
     title,
     body,
     importance,
-    JSON.stringify(props),
+    JSON.stringify(checked.props),
     ctx.now().toISOString(),
     id,
   ]);
@@ -400,8 +426,20 @@ export function decide(ctx: Ctx, id: NodeId, d: Decision): Node {
 
   // A parked edit on an active node.
   const envelope = editEnvelopeFor(ctx, id);
-  if (node.status !== "active" || envelope === null)
+  if (node.status !== "active" || envelope === null) {
+    // The node may still be awaiting a PAIR-keyed verdict — say so instead
+    // of the misleading "nothing pending" (review-2 F9).
+    const question = ctx.mem.get<{ a: string }>(
+      "SELECT a FROM identity_pending WHERE a = ? OR b = ? LIMIT 1",
+      [id, id],
+    );
+    if (question !== null)
+      throw new MemoryError(
+        "conflict",
+        `node ${id} is awaiting an identity verdict — use decideIdentity(keep, other, verdict)`,
+      );
     throw new MemoryError("not_found", `nothing pending on node ${id}`);
+  }
   let result: Node = node;
   switch (d.kind) {
     case "approve":

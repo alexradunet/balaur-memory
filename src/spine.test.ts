@@ -32,9 +32,15 @@ describe("spine: create/read", () => {
     expect(n.surfacing).toBe("always");
     expect(n.origin).toBe("turn:t1");
     expect(store.getNode(n.id).title).toBe("Hello");
-    // on_day: neighborhood contains the auto-created day node
-    const hood = store.neighborhood(n.id);
-    expect(hood.map((x) => x.type)).toContain("day");
+    // on_day: the anchor edge exists in the record — but day plumbing
+    // stays out of the traversal read (review-2 F2)
+    const db = new Database(join(dir, "memory.db"), { readonly: true });
+    const onDay = db
+      .query("SELECT COUNT(*) AS c FROM edges WHERE source = ? AND type = 'on_day'")
+      .get(n.id) as { c: number };
+    db.close();
+    expect(onDay.c).toBe(1);
+    expect(store.neighborhood(n.id).map((x) => x.type)).not.toContain("day");
   });
 
   test("unknown type and empty title are refused", () => {

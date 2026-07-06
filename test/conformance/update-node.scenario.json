@@ -1,0 +1,40 @@
+{
+  "name": "updateNode: retitle reconciles a now-equal alias; props replace wholesale; audited",
+  "invariants": ["I12"],
+  "clock": "2026-07-05T12:00:00.000Z",
+  "steps": [
+    { "op": "registerType", "name": "note", "bornStatus": "active" },
+    {
+      "op": "createNode",
+      "as": "n",
+      "input": { "type": "note", "title": "Ana Popescu", "props": { "keep": "old" }, "origin": "t" }
+    },
+    { "op": "addAlias", "id": "@n.id", "alias": "ana" },
+    { "op": "updateNode", "id": "@n.id", "patch": { "title": "Ana" } },
+    { "op": "updateNode", "id": "@n.id", "patch": { "props": { "fresh": "new" } } }
+  ],
+  "expect": [
+    { "sql": "SELECT title FROM nodes WHERE id = ?", "params": ["@n.id"], "equals": "Ana" },
+    { "sql": "SELECT COUNT(*) FROM aliases WHERE node_id = ?", "params": ["@n.id"], "equals": 0 },
+    {
+      "sql": "SELECT json_extract(props, '$.keep') FROM nodes WHERE id = ?",
+      "params": ["@n.id"],
+      "equals": null
+    },
+    {
+      "sql": "SELECT json_extract(props, '$.fresh') FROM nodes WHERE id = ?",
+      "params": ["@n.id"],
+      "equals": "new"
+    },
+    {
+      "sqlIndex": "SELECT extra FROM nodes_fts WHERE id = ?",
+      "params": ["@n.id"],
+      "equals": ""
+    },
+    {
+      "sql": "SELECT COUNT(*) FROM audit_log WHERE action = 'node.update' AND ref = ?",
+      "params": ["@n.id"],
+      "equals": 2
+    }
+  ]
+}

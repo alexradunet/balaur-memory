@@ -276,10 +276,18 @@ export function decideIdentity(ctx: Ctx, keep: NodeId, other: NodeId, verdict: "
 
   // --- the compound merge, in order (each step audited) ---
 
-  // 1. Self-loop edges between the pair drop outright.
+  // 1. Edges that must not survive the rewire drop outright: the pair's
+  //    own edges (would become self-loops), the dup's self-loops (would
+  //    become manufactured keep→keep loops), and every no_match edge
+  //    incident to the dup — a non-relation of the dup is NOT a
+  //    non-relation of the survivor; transplanting one would permanently
+  //    poison a pair the owner never ruled on (I9, review-2 F1). Identity
+  //    assertions retire with the node that carried them.
   const dropped = ctx.mem.run(
-    "DELETE FROM edges WHERE (source = ? AND target = ?) OR (source = ? AND target = ?)",
-    [keep, other, other, keep],
+    `DELETE FROM edges WHERE (source = ? AND target = ?) OR (source = ? AND target = ?)
+       OR (source = ? AND target = ?)
+       OR (type = 'no_match' AND (source = ? OR target = ?))`,
+    [keep, other, other, keep, other, other, other, other],
   ).changes;
 
   // 2. Rewire: keep's existing edges win (UPDATE OR IGNORE skips unique

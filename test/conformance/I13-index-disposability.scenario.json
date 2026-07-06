@@ -14,11 +14,20 @@
       "as": "x2",
       "input": { "type": "note", "title": "Xanadu two", "body": "xanadu plans", "origin": "t" }
     },
+    { "op": "addAlias", "id": "@x1.id", "alias": "zulu" },
+    { "op": "addAlias", "id": "@x1.id", "alias": "alpha" },
+    { "op": "addAlias", "id": "@x1.id", "alias": "mike" },
     { "op": "reopenWithoutIndex" },
     { "op": "rebuildIndex" }
   ],
   "expect": [
     { "recall": { "terms": ["xanadu"] }, "titles": ["Xanadu one", "Xanadu two"] },
+    { "recall": { "terms": ["zulu"] }, "titles": ["Xanadu one"] },
+    {
+      "sqlIndex": "SELECT extra FROM nodes_fts WHERE id = ?",
+      "params": ["@x1.id"],
+      "equals": "alpha mike zulu"
+    },
     { "sql": "SELECT COUNT(*) FROM nodes WHERE type = 'note'", "equals": 2 }
   ]
 }

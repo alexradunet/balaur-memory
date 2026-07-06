@@ -144,9 +144,13 @@ deterministic rules prove insufficient in real use, and then as candidate
 type, distinct, no `no_match` edge (I9), neither `never`-surfaced. Then, in
 order, each step audited:
 
-1. **Rewire edges.** Every edge of `other` re-points to `keep`
-   (`ON CONFLICT DO NOTHING` — `keep`'s existing edges win; would-be
-   self-loops drop). One audit row summarizes `{rewired, dropped}`.
+1. **Rewire edges.** First, edges that must not survive drop outright:
+   the pair's own edges (would-be self-loops), the dup's self-loops, and
+   every `no_match` edge incident to the dup — identity assertions retire
+   with the node that carried them; transplanting one would poison a pair
+   the owner never ruled on (I9). Then every remaining edge of `other`
+   re-points to `keep` (`keep`'s existing edges win; collision leftovers
+   drop). One audit row summarizes `{rewired, dropped}`.
 2. **Fold names.** `other`'s normalized title and all its aliases become
    aliases of `keep` (`source='merge'`) — future `resolveRef("Ana")` finds
    the survivor.

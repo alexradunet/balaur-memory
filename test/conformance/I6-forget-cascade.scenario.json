@@ -63,6 +63,28 @@
       "sources": ["@fact.id"]
     },
     {
+      "op": "propose",
+      "as": "fact2",
+      "proposal": {
+        "type": "memory",
+        "title": "Xylograph",
+        "body": "",
+        "origin": "turn:t2"
+      }
+    },
+    {
+      "op": "decide",
+      "id": "@fact2.id",
+      "decision": {
+        "kind": "approve"
+      }
+    },
+    {
+      "op": "suggestIdentities",
+      "type": "memory",
+      "as": "s1"
+    },
+    {
       "op": "forget",
       "id": "@fact.id",
       "as": "f1"
@@ -148,10 +170,18 @@
       "contains": "external:prior-exports"
     },
     {
+      "outcome": "s1",
+      "equals": "1"
+    },
+    {
+      "sql": "SELECT COUNT(*) FROM identity_pending",
+      "equals": 0
+    },
+    {
       "recall": {
         "terms": ["xylograph"]
       },
-      "titles": ["Meeting notes"]
+      "titles": ["Meeting notes", "Xylograph"]
     },
     {
       "sql": "SELECT COUNT(*) FROM aliases WHERE node_id = ?",

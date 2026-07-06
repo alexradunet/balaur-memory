@@ -156,6 +156,12 @@ CREATE TABLE vectors (
 | `no_match` | a ↔ b | library (Decide) | owner ruled distinct — never re-propose (I9) |
 | `derived_from` | artifact → source | library (recordDerivation) | lineage; cascade root |
 
+Day anchors are keyed by the **UTC calendar day** (I11 — the library is
+UTC-only). A host whose owner lives east of UTC should know a late-night
+capture files under the UTC day, which may be "yesterday" locally; hosts
+wanting owner-local day semantics register and link their own day-like
+nodes.
+
 ## Status semantics
 
 | status | meaning | reachable from | leaves to |
@@ -176,11 +182,17 @@ CREATE TABLE vectors (
   `active`.
 - **I2 — Recall filter.** Ambient recall (`recall`, `search`) returns only
   `status='active' AND surfacing='always'` nodes. `surfacing='ask'` nodes
-  are returned only when the query names them (explicit term hit on title),
-  never via broad matching. `surfacing='never'` nodes are reachable only by
-  `getNode(id)`.
+  are returned only when the query names them — an explicit term hit on
+  the title, or on the resolution surfaces (`resolveRef`) an
+  exact-normalized match of the title or an alias (an alias IS a name) —
+  never via broad matching. `surfacing='never'` nodes are reachable only
+  by `getNode(id)`.
 - **I3 — Traversal filter.** Graph reads (`neighborhood`) return active
-  nodes only.
+  nodes only, exclude `surfacing='never'` neighbors (I2 composes with
+  traversal — never means never), and exclude `day` anchors (plumbing,
+  the same rule as ambient recall). `ask` neighbors are returned:
+  traversal is an owner-facing read of a named subject, not ambient
+  matching.
 - **I4 — Write-time gate.** `propose` MUST route: normalized-title equality
   vs a pending proposal → merge into it (`merged_pending`); vs an active
   node of the same type → no write at all (`exists_active`); else create
@@ -211,7 +223,9 @@ CREATE TABLE vectors (
   (host-supplied; `''` only for owner-manual creations). `author` is set
   whenever content carries a third party's words.
 - **I11 — Timestamps and IDs.** All times UTC ISO-8601 with ms; all ids
-  lowercase ULID. `updated >= created` always.
+  lowercase ULID, monotonic within a millisecond per process — under I14's
+  single writer, lexical id order IS creation order. `updated >= created`
+  always.
 - **I12 — Audit coverage.** Every mutation of `nodes`, `edges`,
   `pending_edits`, and every decision writes exactly one audit row
   (compound decisions: one per step plus one summary).

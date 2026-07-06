@@ -16,6 +16,7 @@ import {
   type Node,
   type NodeId,
   type NodeTypeSpec,
+  normalizeText,
   type Props,
   parseProps,
   type Status,
@@ -160,8 +161,9 @@ export function typeRow(ctx: Ctx, name: string): TypeRow {
 
 /** Apply the type's template (fill empty body / missing prop keys), then
  * validate declared props: required present, primitives type-checked.
- * Undeclared keys pass through — an empty schema allows any props. */
-function applyTemplateAndValidate(
+ * Undeclared keys pass through — an empty schema allows any props.
+ * Exported: the consent decide path runs the same validation (review-2 F3). */
+export function applyTemplateAndValidate(
   t: TypeRow,
   body: string,
   props: Props,
@@ -301,7 +303,11 @@ export function mustGet(ctx: Ctx, id: NodeId): Node {
   return rowToNode(row);
 }
 
-/** 1-hop active-only set around a node (I3: the consent filter on traversal). */
+/** 1-hop set around a node: ACTIVE only (I3), `never`-surfaced excluded
+ * (I2 composes with traversal — never means never, reachable only by
+ * getNode; review-2 F2), `day` anchors excluded as plumbing (the
+ * ambient-recall rule). `ask` neighbors ARE returned: traversal is an
+ * owner-facing read of a named subject, not ambient matching. */
 export function neighborhood(ctx: Ctx, id: NodeId): Node[] {
   const rows = ctx.mem.query<NodeRow>(
     `SELECT DISTINCT ${NODE_COLS.split(", ")
@@ -309,7 +315,7 @@ export function neighborhood(ctx: Ctx, id: NodeId): Node[] {
       .join(", ")}
      FROM nodes n
      JOIN edges e ON (e.source = ? AND e.target = n.id) OR (e.target = ? AND e.source = n.id)
-     WHERE n.status = 'active'`,
+     WHERE n.status = 'active' AND n.surfacing != 'never' AND n.type != 'day'`,
     [id, id],
   );
   return rows.map(rowToNode);
@@ -340,6 +346,12 @@ export function updateNode(
       : (node.props as Record<string, unknown>);
 
   return ctx.mem.transaction(() => {
+    // A retitle that lands on one of the node's own aliases makes that
+    // alias the noise addAlias refuses — reconcile by dropping it, so the
+    // "no alias equals the title" rule survives the back door (review-2 F7).
+    if (patch.title !== undefined) {
+      ctx.mem.run("DELETE FROM aliases WHERE node_id = ? AND alias = ?", [id, normalizeText(title)]);
+    }
     ctx.mem.run("UPDATE nodes SET title = ?, body = ?, props = ?, updated = ? WHERE id = ?", [
       title,
       nextBody,

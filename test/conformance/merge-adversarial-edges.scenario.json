@@ -1,0 +1,31 @@
+{
+  "name": "the merge under adversarial edges: no_match never transplants, self-loops die, chains flatten",
+  "invariants": ["I9", "I8"],
+  "clock": "2026-07-05T12:00:00.000Z",
+  "steps": [
+    { "op": "registerType", "name": "person", "bornStatus": "active" },
+    { "op": "createNode", "as": "a", "input": { "type": "person", "title": "Radu Ilie", "origin": "o" } },
+    { "op": "createNode", "as": "b", "input": { "type": "person", "title": "radu ilie", "origin": "o" } },
+    { "op": "decideIdentity", "keep": "@a.id", "other": "@b.id", "verdict": "different" },
+    { "op": "createNode", "as": "c", "input": { "type": "person", "title": "RADU ILIE", "origin": "o" } },
+    { "op": "createNode", "as": "d", "input": { "type": "person", "title": "Radu Dup", "origin": "o" } },
+    { "op": "decideIdentity", "keep": "@b.id", "other": "@d.id", "verdict": "same" },
+    { "op": "link", "source": "@b.id", "target": "@b.id", "type": "self" },
+    { "op": "decideIdentity", "keep": "@c.id", "other": "@b.id", "verdict": "same" },
+    { "op": "suggestIdentities", "type": "person", "as": "s1" },
+    { "op": "decideIdentity", "keep": "@a.id", "other": "@c.id", "verdict": "same" }
+  ],
+  "expect": [
+    { "outcome": "s1", "equals": "1" },
+    { "sql": "SELECT COUNT(*) FROM edges WHERE type = 'no_match'", "equals": 0 },
+    { "sql": "SELECT COUNT(*) FROM edges WHERE source = target", "equals": 0 },
+    {
+      "sql": "SELECT COUNT(*) FROM edges WHERE type = 'merged_into' AND target = ?",
+      "params": ["@a.id"],
+      "equals": 3
+    },
+    { "sql": "SELECT status FROM nodes WHERE id = ?", "params": ["@a.id"], "equals": "active" },
+    { "sql": "SELECT status FROM nodes WHERE id = ?", "params": ["@c.id"], "equals": "merged" },
+    { "sql": "SELECT COUNT(*) FROM identity_pending", "equals": 0 }
+  ]
+}
