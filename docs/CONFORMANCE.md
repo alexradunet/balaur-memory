@@ -35,32 +35,41 @@ can reimplement):
 ```
 
 - `steps` use a small op vocabulary mapping 1:1 to the public API
-  (`registerType, createNode, propose, proposeEdit, decide, link, recall,
-  search, touch, transition, setSurfacing, quarantine, forget,
-  recordDerivation, putVector, rebuildIndex, deleteIndexDb`).
-- `as` binds returned ids/outcomes to names later steps and expectations
-  reference.
-- `expect` entries are either bound-value assertions or **raw SQL against
-  memory.db** — the contract is the database, so the assertions read the
-  database.
-- `clock` (plus optional per-step `advance`) makes time-dependent behavior
-  (recency decay, review_at, staleness) deterministic.
+  (`registerType, createNode, link, transition, touch, setSurfacing,
+  propose, proposeEdit, decide, addAlias, suggestIdentities,
+  decideIdentity, putVector, quarantine, forget, recordDerivation,
+  rebuildIndex, reopenWithoutIndex`). `link` takes an optional edge
+  `type` and `context`; a step with `expectError` asserts the op throws.
+- `as` binds returned nodes/outcomes/reports to names later steps and
+  expectations reference (`@name` / `@name.id`).
+- `expect` entries assert bound values (`bound`), ranked reads (`recall`,
+  `entityContext`), gate outcomes (`outcome`), hint sets (`conflicts`),
+  forget reports (`report`), traversals (`neighborhood`) — or **raw SQL
+  against memory.db / index.db** (`sql` / `sqlIndex`): the contract is the
+  database, so the assertions read the database.
+- `clock` (plus optional per-step `advanceMs`) makes time-dependent
+  behavior (recency decay, review_at, staleness) deterministic.
 
-## Coverage map (feature-complete, v0.1)
+## Coverage map
 
 | Scenario | Invariants pinned |
 |---|---|
 | `I1-owner-writes-born-active` | I1 (owner half), I10 |
 | `golden-I1-consent-boundary` | I1 (both halves), I10, hint kinds |
 | `I2-recall-surfacing` | I2 (always/ask/never across recall) |
+| `I2-consent-surfaces` | I2 on the gate + hints (no exists_active oracle for `never`) |
 | `I3-neighborhood-active-only` | I3 |
 | `golden-I4-audn-gate` | I4 (created / merged_pending / exists_active) |
 | `golden-I5-supersede` | I5 + the I2 composition (superseded leaves ambient recall) |
 | `I6-forget-cascade` | I6, I7 (content-free log probe), I8 (post-forget terminality) |
 | `I8-fsm-terminality-and-guards` | I8 (guarded targets) |
+| `I9-apple-photos` | I9, both halves: never re-proposed; merge refused either order |
 | `I11-ids-and-timestamps` | I11 |
 | `I12-audit-coverage` | I12, I7 |
 | `I13-index-disposability` | I13 (delete → reopen → rebuild → identical recall) |
+| `entities-questions` | R1–R3 evidence priority, exclusions, idempotent re-runs (I2) |
+| `golden-two-anas-merge` | the compound merge: rewire/fold/chain/husk, I7 through it, I2 recall |
+| `entity-context-peer-card` | the bounded peer card: I2/I3 filtering, recency order, edges included |
 
 Thirteen of fourteen invariants are scenario-pinned. The remaining one:
 

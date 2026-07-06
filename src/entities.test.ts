@@ -363,3 +363,77 @@ describe("decideIdentity: no_match permanence (I9, both halves)", () => {
     expect(store.getNode(b.id).status).toBe("active");
   });
 });
+
+describe("entityContext: the peer card (Phase D)", () => {
+  test("node + aliases + recency-ranked peers carrying their edges, hard-capped", () => {
+    const ana = store.createNode({ type: "person", title: "Ana Popescu", origin: "o" });
+    store.addAlias(ana.id, "sis");
+    const maria = store.createNode({ type: "person", title: "Maria", origin: "o" });
+    store.link(ana.id, maria.id, "sister_of", "family");
+    const n1 = store.createNode({ type: "note", title: "Plan A", origin: "o" });
+    const n2 = store.createNode({ type: "note", title: "Plan B", origin: "o" });
+    store.link(n1.id, ana.id, "mentions");
+    store.link(n2.id, ana.id, "mentions");
+    store.link(ana.id, n2.id, "wrote"); // second edge, other direction → same peer entry
+    store.touch(maria.id); // most recent anchor
+
+    const card = store.entityContext(ana.id);
+    expect(card.node.id).toBe(ana.id);
+    expect(card.aliases).toEqual(["sis"]);
+    expect(card.peers.map((p) => p.node.title)).toEqual(["Maria", "Plan B", "Plan A"]);
+    const mariaPeer = card.peers[0];
+    if (mariaPeer === undefined) throw new Error("expected a peer");
+    expect(mariaPeer.edges).toHaveLength(1);
+    expect(mariaPeer.edges[0]?.type).toBe("sister_of");
+    expect(mariaPeer.edges[0]?.context).toBe("family"); // edge context survives
+    expect(mariaPeer.edges[0]?.source).toBe(ana.id); // direction survives
+    const planB = card.peers.find((p) => p.node.id === n2.id);
+    expect(planB?.edges.map((e) => e.type).sort()).toEqual(["mentions", "wrote"]); // one entry, both edges
+    expect(store.entityContext(ana.id, 1).peers.map((p) => p.node.id)).toEqual([maria.id]); // the cap
+    expect(store.entityContext(ana.id, 0).peers).toEqual([]); // identity block only
+  });
+
+  test("I2 on the card: never/ask peers invisible; never subject refused; ask subject allowed", () => {
+    const ana = store.createNode({ type: "person", title: "Card Ana", origin: "o" });
+    const ghost = store.createNode({ type: "person", title: "Ghost", origin: "o" });
+    store.setSurfacing(ghost.id, "never");
+    const quiet = store.createNode({ type: "person", title: "Quiet", origin: "o" });
+    store.setSurfacing(quiet.id, "ask");
+    const plain = store.createNode({ type: "person", title: "Plain", origin: "o" });
+    store.link(ana.id, ghost.id, "knows");
+    store.link(ana.id, quiet.id, "knows");
+    store.link(ana.id, plain.id, "knows");
+
+    const card = store.entityContext(ana.id);
+    expect(card.peers.map((p) => p.node.id)).toEqual([plain.id]); // ghost + quiet stay out
+
+    store.setSurfacing(ana.id, "ask");
+    expect(store.entityContext(ana.id).node.id).toBe(ana.id); // named by id — ask subject is fine
+    store.setSurfacing(ana.id, "never");
+    expect(() => store.entityContext(ana.id)).toThrow("I2"); // never means never
+  });
+
+  test("subject guards: merged husk points at survivorOf; non-active refused; limit validated", () => {
+    const keep = store.createNode({ type: "person", title: "Keeper R", origin: "o" });
+    const dup = store.createNode({ type: "person", title: "keeper r", origin: "o" });
+    store.decideIdentity(keep.id, dup.id, "same");
+    expect(() => store.entityContext(dup.id)).toThrow("survivorOf");
+    const arch = store.createNode({ type: "person", title: "Archived P", origin: "o" });
+    store.transition(arch.id, "archived");
+    expect(() => store.entityContext(arch.id)).toThrow("ACTIVE");
+    expect(() => store.entityContext(keep.id, -1)).toThrow(MemoryError);
+    expect(() => store.entityContext(keep.id, 2.5)).toThrow(MemoryError);
+  });
+
+  test("no_match neighbors and day anchors never appear; no_match edges never ride along", () => {
+    const ana = store.createNode({ type: "person", title: "Ana V", origin: "o" });
+    const rival = store.createNode({ type: "person", title: "Other Ana V", origin: "o" });
+    store.decideIdentity(ana.id, rival.id, "different"); // only a no_match edge between them
+    expect(store.entityContext(ana.id).peers).toEqual([]); // day anchor + no_match both out
+
+    store.link(ana.id, rival.id, "coworker_of"); // a REAL relationship on top
+    const card = store.entityContext(ana.id);
+    expect(card.peers.map((p) => p.node.id)).toEqual([rival.id]); // present via the real edge
+    expect(card.peers[0]?.edges.map((e) => e.type)).toEqual(["coworker_of"]); // no_match still absent
+  });
+});

@@ -232,6 +232,7 @@ describe("audit stays content-free — structural (review I7/#15)", () => {
     const twinB = store.createNode({ type: "note", title: ` ${S}  TWIN `, origin: "t" });
     store.suggestIdentities("note");
     store.decideIdentity(twinA.id, twinB.id, "same");
+    store.entityContext(twinA.id); // pure read — must stay silent in the log
     store.forget(p.node.id);
     store.close();
 

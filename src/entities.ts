@@ -12,7 +12,7 @@
  */
 
 import { audit, type Ctx, insertEdge, mustGet, reindexNode } from "./spine.ts";
-import { MemoryError, type Node, type NodeId, normalizeText } from "./types.ts";
+import { type Edge, type EdgeId, MemoryError, type Node, type NodeId, normalizeText } from "./types.ts";
 
 /** Owner verb: record a name the node also answers to. Idempotent; the
  * node must be active; an alias equal to the node's own title is refused
@@ -342,4 +342,101 @@ export function decideIdentity(ctx: Ctx, keep: NodeId, other: NodeId, verdict: "
     folded,
   });
   return mustGet(ctx, keep);
+}
+
+// --- Phase D: the peer card (docs/ENTITIES.md) ---
+
+/** One neighbor on a peer card: the node plus the raw edges connecting it
+ * to the subject — source/target preserved, so direction and the edge
+ * `context` string survive into the host's prompt block. */
+export interface Peer {
+  readonly node: Node;
+  readonly edges: readonly Edge[];
+}
+
+/** The bounded disambiguation block for one referent ("this Ana is the
+ * sister, not the coworker"): the node, its names, and its capped 1-hop
+ * neighborhood. Hosts compose it into prompts; the library never injects. */
+export interface EntityContext {
+  readonly node: Node;
+  readonly aliases: readonly string[];
+  readonly peers: readonly Peer[];
+}
+
+/** The same recency anchor the recall blend decays on. */
+function recencyAnchor(n: Node): string {
+  return n.lastUsed ?? n.updated;
+}
+
+/**
+ * The bounded peer card (ENTITIES.md, Phase D). Subject: ACTIVE only — a
+ * merged husk is refused with a pointer at survivorOf(); `never` is refused
+ * (I2 — never means never), `ask` is allowed (an id is the strongest form
+ * of literal naming). Peers: the 1-hop ACTIVE set (I3), `always`-surfaced
+ * only — the card names its subject, not its peers, so `ask` stays out
+ * (I2); `day` anchors are plumbing (same exclusion as ambient recall);
+ * `no_match` edges never appear, and a neighbor connected ONLY by no_match
+ * is not a peer — that edge asserts a NON-relation. Ranked by recency
+ * (last_used ?? updated) descending, id ascending on ties; hard-capped at
+ * `limit`. A pure read: nothing is audited, touched, or written.
+ */
+export function entityContext(ctx: Ctx, id: NodeId, limit = 6): EntityContext {
+  if (!Number.isInteger(limit) || limit < 0)
+    throw new MemoryError("props_invalid", "limit must be a non-negative integer");
+  const node = mustGet(ctx, id);
+  if (node.status === "merged")
+    throw new MemoryError(
+      "invalid_transition",
+      `node ${id} is a merged husk — survivorOf() walks to its living end`,
+    );
+  if (node.status !== "active")
+    throw new MemoryError("invalid_transition", `peer cards describe ACTIVE nodes (status=${node.status})`);
+  if (node.surfacing === "never")
+    throw new MemoryError("conflict", "never-surfaced nodes do not take peer cards (I2)");
+
+  const rows = ctx.mem.query<{
+    id: string;
+    source: string;
+    target: string;
+    type: string;
+    context: string;
+    created: string;
+  }>(
+    `SELECT id, source, target, type, context, created FROM edges
+     WHERE (source = ? OR target = ?) AND type != 'no_match'
+     ORDER BY created ASC, id ASC`,
+    [id, id],
+  );
+  const bySide = new Map<string, Edge[]>();
+  for (const r of rows) {
+    const peerId = r.source === id ? r.target : r.source;
+    if (peerId === id) continue; // a self-loop carries no peer
+    const edge: Edge = {
+      id: r.id as EdgeId, // brand boundary
+      source: r.source as NodeId,
+      target: r.target as NodeId,
+      type: r.type,
+      context: r.context,
+      created: r.created,
+    };
+    const list = bySide.get(peerId);
+    if (list === undefined) bySide.set(peerId, [edge]);
+    else list.push(edge);
+  }
+
+  const peers: { node: Node; edges: Edge[] }[] = [];
+  for (const [peerId, edges] of bySide) {
+    const peer = mustGet(ctx, peerId as NodeId);
+    if (peer.status !== "active") continue; // the 1-hop ACTIVE set (I3)
+    if (peer.surfacing !== "always") continue; // the card names its subject, not its peers (I2)
+    if (peer.type === "day") continue; // anchor plumbing, same rule as ambient recall
+    peers.push({ node: peer, edges });
+  }
+  peers.sort((a, b) => {
+    const ra = recencyAnchor(a.node);
+    const rb = recencyAnchor(b.node);
+    if (ra !== rb) return ra < rb ? 1 : -1; // recency DESC (ISO-8601 compares lexically)
+    return a.node.id < b.node.id ? -1 : 1; // deterministic tie-break
+  });
+  return { node, aliases: aliasesOf(ctx, id), peers: peers.slice(0, limit) };
 }

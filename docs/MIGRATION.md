@@ -80,10 +80,16 @@ cheap.
 | Phase | State |
 |---|---|
 | 0 Go contract | superseded 2026-07-05 |
-| 0.5 pivot + design | in review (this PR) |
+| 0.5 pivot + design | DONE (PR #2, merged) |
 | 1 spine | DONE (PR #3, merged) |
 | 2 recall | DONE (PR #4, merged) |
 | 3 consent gate | DONE (PR #5, merged) |
 | 4 lifecycle | DONE (PR #6, merged) |
-| 5 doctor | in review (PR #7) |
+| 5 doctor | DONE (PR #7, merged) |
+| hardening — review fix batch | DONE (PR #8, merged) |
+| entities design doc (ENTITIES.md) | DONE (PR #9, merged) |
+| entities A — names | DONE (PR #10, merged) |
+| entities B — questions (v0.2.0) | DONE (PR #11, merged) |
+| entities C — verdicts, I9 | DONE (PR #12, merged) |
+| entities D — the peer card | in review (PR #13) |
 | 6 interop | open by design |

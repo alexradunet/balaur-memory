@@ -1,9 +1,9 @@
 # ENTITIES.md — consent-gated identity resolution (design)
 
-- **Status:** ARC COMPLETE. Phase A (names, PR #10), Phase B (questions +
-  the Pending union, PR #11, v0.2.0), Phase C (verdicts + I9, PR #12).
-  Phase D (entityContext, the peer-card primitive) remains optional, on
-  demand. Owner confirmed the three open questions.
+- **Status:** ARC COMPLETE — all four phases. Phase A (names, PR #10),
+  Phase B (questions + the Pending union, PR #11), Phase C (verdicts + I9,
+  PR #12), Phase D (the peer card, PR #13, v0.2.2). Owner confirmed the
+  three open questions.
 - **Pins:** I9 (`no_match` permanence) finally gets its producer. Ships as
   **schema_version 2** and **v0.2.0** (one deliberate breaking change:
   `Pending` becomes a tagged union).
@@ -165,14 +165,32 @@ ambiguous for edges created *after* the merge (whose are they?). Google
 Contacts answers this with a 30-day window; our answer is honest deferral —
 `merged` stays terminal until real demand defines the semantics.
 
-## Recall integration (Phase D, optional)
+## The peer card (Phase D — shipped)
 
 `entityContext(id, limit = 6)` — the bounded "peer card" primitive: the
-node, its aliases, and its 1-hop active neighborhood ranked by recency,
-capped hard. One hop only (spreading-activation decays steeply past it, and
-`neighborhood()` already exists); the host composes this into prompts as a
-disambiguation block ("this Ana is the sister, not the coworker"). No
-ambient injection by the library — hosts own token budgets.
+node, its aliases, and its 1-hop ACTIVE neighborhood ranked by recency
+(the recall blend's own anchor: `last_used ?? updated`, descending; node
+id ascending on ties), hard-capped at `limit`. Each peer carries the raw
+edges that connect it to the subject — source/target preserved, so
+direction and the edge `context` string survive into the host's prompt
+block ("this Ana is the sister, not the coworker"). One hop only
+(spreading-activation decays steeply past it). A pure read: nothing is
+audited, touched, or written — hosts compose it into prompts and own
+their token budgets; the library never injects ambiently.
+
+Semantics, precisely:
+
+- **Subject** — must be ACTIVE. A `merged` husk is refused with a pointer
+  at `survivorOf()`; other non-active statuses are refused plainly. A
+  `never`-surfaced subject is refused (I2 — never means never); an `ask`
+  subject is allowed — an id is the strongest form of literal naming.
+- **Peers** — ACTIVE (I3) and `always`-surfaced only: the card names its
+  subject, not its peers, so `ask` peers stay out (I2). `day` anchors are
+  excluded as plumbing (the same rule ambient recall applies). `no_match`
+  edges never appear, and a neighbor connected ONLY by `no_match` is not a
+  peer — that edge asserts a NON-relation. Self-loops carry no peer.
+- **Bounds** — `limit` must be a non-negative integer; `0` returns the
+  identity block alone (node + aliases, no peers).
 
 ## What stays out (and why)
 

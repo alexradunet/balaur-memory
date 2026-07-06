@@ -15,7 +15,7 @@ export type {
   RecallOptions,
   StoreContract,
 } from "./contract.ts";
-export type { IdentityEvidence } from "./entities.ts";
+export type { EntityContext, IdentityEvidence, Peer } from "./entities.ts";
 export type { ForgetReport } from "./lifecycle.ts";
 export { DEFAULT_RANKING, termsFromText } from "./recall.ts";
 export { SCHEMA_VERSION } from "./storage/schema.ts";

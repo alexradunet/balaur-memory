@@ -45,6 +45,13 @@ type Expect =
   | { conflicts: string; reasons: string[] }
   | { report: string; path: string; equals?: unknown; length?: number; contains?: string }
   | { sqlIndex: string; params?: unknown[]; equals: unknown }
+  | {
+      entityContext: string;
+      limit?: number;
+      aliases?: string[];
+      peerTitlesInOrder?: string[];
+      peerVia?: string[][];
+    }
   | { neighborhood: string; titlesEqual: string[] };
 
 const DIR = join(import.meta.dir);
@@ -86,6 +93,8 @@ for (const file of readdirSync(DIR).filter((f) => f.endsWith(".scenario.json")))
                 store.link(
                   (resolveRef(bindings, step["source"] as string) as Node["id"]) ?? ("" as NodeId),
                   resolveRef(bindings, step["target"] as string) as Node["id"],
+                  (step["type"] as string | undefined) ?? "links",
+                  (step["context"] as string | undefined) ?? "",
                 );
                 return undefined;
               case "transition":
@@ -253,6 +262,17 @@ for (const file of readdirSync(DIR).filter((f) => f.endsWith(".scenario.json")))
                 .map((n) => n.title);
               if (ex.titlesInOrder !== undefined) expect(got).toEqual(ex.titlesInOrder);
               if (ex.titles !== undefined) expect([...got].sort()).toEqual([...ex.titles].sort());
+            } else if ("entityContext" in ex) {
+              const subject = bindings.get(ex.entityContext);
+              if (!subject) throw new Error(`unbound ${ex.entityContext}`);
+              const card = store.entityContext(subject.id, ex.limit);
+              if (ex.aliases !== undefined) expect([...card.aliases]).toEqual(ex.aliases);
+              if (ex.peerTitlesInOrder !== undefined)
+                expect(card.peers.map((p) => p.node.title)).toEqual(ex.peerTitlesInOrder);
+              if (ex.peerVia !== undefined)
+                expect(card.peers.map((p) => [...new Set(p.edges.map((e) => e.type))].sort())).toEqual(
+                  ex.peerVia,
+                );
             } else {
               const node = bindings.get(ex.neighborhood);
               if (!node) throw new Error(`unbound ${ex.neighborhood}`);

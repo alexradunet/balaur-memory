@@ -237,6 +237,12 @@ export class Store implements StoreContract {
     return entities.decideIdentity(this.guard(), keep, other, verdict);
   }
 
+  /** The bounded peer card — disambiguation context for host prompts
+   * (ENTITIES.md, Phase D). Pure read; hosts own token budgets. */
+  entityContext(id: NodeId, limit?: number): entities.EntityContext {
+    return entities.entityContext(this.guard(), id, limit);
+  }
+
   // --- lineage (landed with the cascade; SCHEMA.md derivations) ---
 
   /** Register a derived artifact's sources at creation time. */

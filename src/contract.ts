@@ -10,6 +10,7 @@
  */
 
 import type { Conflict, Decision, Outcome, Pending, Proposal } from "./consent.ts";
+import type { EntityContext } from "./entities.ts";
 import type { ForgetReport } from "./lifecycle.ts";
 import type { Edge, Node, NodeId, NodeTypeSpec, Props, Status, Surfacing } from "./types.ts";
 
@@ -125,6 +126,11 @@ export interface StoreContract {
    * content-preserving merged husk. "different": permanent no_match (I9).
    * Returns the kept node. */
   decideIdentity(keep: NodeId, other: NodeId, verdict: "same" | "different"): Node;
+  /** The bounded peer card (Phase D): the node, its names, and its 1-hop
+   * active, always-surfaced neighborhood ranked by recency, hard-capped —
+   * each peer carrying the raw edges that connect it, so hosts can render
+   * "Ana — sister_of — …". A pure read: nothing audited, touched, written. */
+  entityContext(id: NodeId, limit?: number): EntityContext;
 
   // --- lineage & vectors & measurement ---
 

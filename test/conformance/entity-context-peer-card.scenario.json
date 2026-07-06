@@ -1,0 +1,184 @@
+{
+  "name": "the peer card: bounded, recency-ranked, I2-filtered, edges included",
+  "invariants": ["I2", "I3"],
+  "clock": "2026-07-05T12:00:00.000Z",
+  "steps": [
+    {
+      "op": "registerType",
+      "name": "person",
+      "bornStatus": "active"
+    },
+    {
+      "op": "registerType",
+      "name": "note",
+      "bornStatus": "active"
+    },
+    {
+      "op": "createNode",
+      "as": "ana",
+      "input": {
+        "type": "person",
+        "title": "Ana Popescu",
+        "origin": "o"
+      }
+    },
+    {
+      "op": "addAlias",
+      "id": "@ana.id",
+      "alias": "sis"
+    },
+    {
+      "op": "createNode",
+      "as": "maria",
+      "input": {
+        "type": "person",
+        "title": "Maria",
+        "origin": "o"
+      }
+    },
+    {
+      "op": "link",
+      "source": "@ana.id",
+      "target": "@maria.id",
+      "type": "sister_of",
+      "context": "family"
+    },
+    {
+      "op": "createNode",
+      "as": "ghost",
+      "input": {
+        "type": "person",
+        "title": "Ghost",
+        "surfacing": "never",
+        "origin": "o"
+      }
+    },
+    {
+      "op": "link",
+      "source": "@ana.id",
+      "target": "@ghost.id",
+      "type": "knows"
+    },
+    {
+      "op": "createNode",
+      "as": "quiet",
+      "input": {
+        "type": "person",
+        "title": "Quiet",
+        "origin": "o"
+      }
+    },
+    {
+      "op": "setSurfacing",
+      "id": "@quiet.id",
+      "to": "ask"
+    },
+    {
+      "op": "link",
+      "source": "@ana.id",
+      "target": "@quiet.id",
+      "type": "knows"
+    },
+    {
+      "op": "createNode",
+      "as": "rival",
+      "input": {
+        "type": "person",
+        "title": "Ana P Distinct",
+        "origin": "o"
+      }
+    },
+    {
+      "op": "decideIdentity",
+      "keep": "@ana.id",
+      "other": "@rival.id",
+      "verdict": "different"
+    },
+    {
+      "op": "createNode",
+      "as": "oldnote",
+      "input": {
+        "type": "note",
+        "title": "Old plan",
+        "origin": "o"
+      }
+    },
+    {
+      "op": "link",
+      "source": "@oldnote.id",
+      "target": "@ana.id"
+    },
+    {
+      "op": "transition",
+      "id": "@oldnote.id",
+      "to": "archived"
+    },
+    {
+      "op": "createNode",
+      "as": "note1",
+      "input": {
+        "type": "note",
+        "title": "Weekend plans",
+        "origin": "o"
+      }
+    },
+    {
+      "op": "link",
+      "source": "@note1.id",
+      "target": "@ana.id",
+      "type": "mentions"
+    },
+    {
+      "op": "createNode",
+      "as": "note2",
+      "input": {
+        "type": "note",
+        "title": "Trip ideas",
+        "origin": "o"
+      }
+    },
+    {
+      "op": "link",
+      "source": "@note2.id",
+      "target": "@ana.id",
+      "type": "mentions"
+    },
+    {
+      "op": "createNode",
+      "as": "note3",
+      "input": {
+        "type": "note",
+        "title": "Groceries",
+        "origin": "o"
+      }
+    },
+    {
+      "op": "link",
+      "source": "@note3.id",
+      "target": "@ana.id",
+      "type": "mentions"
+    },
+    {
+      "op": "touch",
+      "id": "@maria.id",
+      "advanceMs": 86400000
+    }
+  ],
+  "expect": [
+    {
+      "entityContext": "ana",
+      "aliases": ["sis"],
+      "peerTitlesInOrder": ["Maria", "Groceries", "Trip ideas", "Weekend plans"],
+      "peerVia": [["sister_of"], ["mentions"], ["mentions"], ["mentions"]]
+    },
+    {
+      "entityContext": "ana",
+      "limit": 2,
+      "peerTitlesInOrder": ["Maria", "Groceries"]
+    },
+    {
+      "sql": "SELECT COUNT(*) FROM edges WHERE type = 'no_match'",
+      "equals": 1
+    }
+  ]
+}
