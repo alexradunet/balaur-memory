@@ -37,7 +37,8 @@ ratification.
 | field survey (FIELD.md) | the 2026 landscape, where we lead, the steal ledger, positioning | DONE (PR #21, merged) |
 | hardening 3 — the perpetuity batch | forget clears when_at (I6), closed-triple loud refusal, the future-file guard, day reserved, backup() via VACUUM INTO, doctor integrityOk | DONE (PR #22, merged) |
 | ergonomics — the life-layer batch | propsPatch, episode window, children dashboard read, the owner fast path on gated types | DONE (PR #24, merged; #23 superseded) |
-| hosting guide (HOSTING.md) | the ten probe-validated life patterns, capture vocabulary, the daily tick, backup procedure | in review (PR #25) |
+| hosting guide (HOSTING.md) | the ten probe-validated life patterns, capture vocabulary, the daily tick, backup procedure | DONE (PR #25, merged) |
+| publishability — Bun-only | exports map to raw TS (no build, by design), files allowlist, engines pin; INTEGRATIONS.md sketch (MCP + pi.dev + skills over process boundaries) | in review (PR #26) |
 
 13 of 14 invariants are conformance-pinned (I14, single writer, holds by
 construction). `Store implements StoreContract` is compiler-checked.

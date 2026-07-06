@@ -29,6 +29,23 @@ the part no existing memory library ships:
   vectors. Brute-force and exact, because at personal scale that is
   milliseconds.
 
+## Using it (Bun — by design)
+
+```bash
+bun add github:alexradunet/balaur-memory
+```
+
+```ts
+import { Store } from "balaur-memory";
+const store = Store.open({ dir: `${process.env.HOME}/.local/share/life` });
+```
+
+The package ships raw TypeScript — Bun consumes it natively; there is no
+build step and no Node entry, **deliberately** (ADR-0001: the runtime bet
+is contained in one adapter file; the schema is the durable contract).
+Other runtimes and agent harnesses reach the library through a process
+boundary — see [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
+
 ## The two contracts
 
 1. **The schema** ([docs/SCHEMA.md](docs/SCHEMA.md)) — the durable,
@@ -77,6 +94,7 @@ the schema contract and the TypeScript API.
 | [docs/CODING.md](docs/CODING.md) | The rules: strict TS, zero deps, SQL discipline, tests |
 | [docs/CONFORMANCE.md](docs/CONFORMANCE.md) | Scenario-file suite any implementation can run |
 | [docs/HOSTING.md](docs/HOSTING.md) | Building a life on this library — the host patterns, probe-validated |
+| [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) | Reaching the library from outside: MCP, pi.dev, skills (sketch) |
 | [docs/FIELD.md](docs/FIELD.md) | The 2026 landscape survey: where this library stands, the steal ledger |
 | [docs/HISTORY.md](docs/HISTORY.md) | How the library was built — the phase log |
 | [docs/adr/](docs/adr/) | Decision records (0001: Bun + TypeScript) |
