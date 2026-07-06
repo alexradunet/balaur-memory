@@ -1,0 +1,44 @@
+{
+  "name": "entities phase B: deterministic questions enter the queue; closed and hidden pairs never do",
+  "invariants": ["I2"],
+  "clock": "2026-07-05T12:00:00.000Z",
+  "steps": [
+    { "op": "registerType", "name": "person", "bornStatus": "active" },
+    {
+      "op": "createNode",
+      "as": "full",
+      "input": { "type": "person", "title": "Ana Popescu", "origin": "o" }
+    },
+    { "op": "createNode", "as": "short", "input": { "type": "person", "title": "Ana", "origin": "o" } },
+    {
+      "op": "createNode",
+      "as": "hidden",
+      "input": { "type": "person", "title": "ana popescu", "origin": "o" }
+    },
+    { "op": "setSurfacing", "id": "@hidden.id", "to": "never" },
+    { "op": "createNode", "as": "aliased", "input": { "type": "person", "title": "Sis", "origin": "o" } },
+    { "op": "addAlias", "id": "@full.id", "alias": "sis" },
+    { "op": "suggestIdentities", "as": "run1", "type": "person" },
+    { "op": "suggestIdentities", "as": "run2", "type": "person" }
+  ],
+  "expect": [
+    { "outcome": "run1", "equals": "2" },
+    { "outcome": "run2", "equals": "0" },
+    { "sql": "SELECT COUNT(*) FROM identity_pending", "equals": 2 },
+    {
+      "sql": "SELECT COUNT(*) FROM identity_pending WHERE a = ? OR b = ?",
+      "params": ["@hidden.id", "@hidden.id"],
+      "equals": 0
+    },
+    {
+      "sql": "SELECT evidence FROM identity_pending WHERE (a = ? AND b = ?) OR (a = ? AND b = ?)",
+      "params": ["@full.id", "@short.id", "@short.id", "@full.id"],
+      "equals": "token_subset"
+    },
+    {
+      "sql": "SELECT evidence FROM identity_pending WHERE (a = ? AND b = ?) OR (a = ? AND b = ?)",
+      "params": ["@full.id", "@aliased.id", "@aliased.id", "@full.id"],
+      "equals": "alias_match"
+    }
+  ]
+}

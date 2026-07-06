@@ -116,6 +116,10 @@ export interface StoreContract {
   resolveRef(type: string, text: string): Node[];
   /** Walk merged_into chains to the living end; non-merged returns itself. */
   survivorOf(id: NodeId): Node;
+  /** Deterministic candidate generation (R1 title, R2 token-subset, R3
+   * alias) writing identity questions to the queue — owner/host-scheduled,
+   * never ambient. Returns questions added (≤ cap). */
+  suggestIdentities(type: string, cap?: number): number;
 
   // --- lineage & vectors & measurement ---
 

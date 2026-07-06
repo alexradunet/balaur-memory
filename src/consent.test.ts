@@ -78,8 +78,10 @@ describe("parked edits", () => {
     store.proposeEdit(p.node.id, { fields: { body: "golden retriever, 5 years old" }, origin: "turn:e2" });
     const q = store.pendingQueue();
     expect(q).toHaveLength(1);
-    expect(q[0]?.edit?.fields["body"]).toBe("golden retriever, 5 years old"); // latest wins
-    expect(q[0]?.node.body).toBe("golden retriever"); // approved content untouched
+    const item = q[0];
+    if (item?.kind !== "edit") throw new Error("expected an edit item");
+    expect(item.edit.fields["body"]).toBe("golden retriever, 5 years old"); // latest wins
+    expect(item.node.body).toBe("golden retriever"); // approved content untouched
 
     const note = store.createNode({ type: "note", title: "N", origin: "t" });
     expect(() => store.proposeEdit(note.id, { fields: { body: "x" }, origin: "t" })).toThrow(MemoryError);
@@ -100,8 +102,9 @@ describe("conflict hints", () => {
     expect(conflicts.map((c) => c.reason)).toContain("lexical_overlap");
     expect(conflicts.every((c) => c.nodeId !== b.node.id)).toBe(true);
     // and the queue embeds them
-    const q = store.pendingQueue();
-    expect(q[0]?.conflicts.length).toBeGreaterThan(0);
+    const head = store.pendingQueue()[0];
+    if (head?.kind !== "proposal") throw new Error("expected a proposal item");
+    expect(head.conflicts.length).toBeGreaterThan(0);
   });
 });
 

@@ -165,3 +165,82 @@ describe("survivorOf", () => {
     expect(["Cycle A", "Cycle B"]).toContain(end.title);
   });
 });
+
+describe("suggestIdentities: rules R1-R3 with evidence priority", () => {
+  test("title_match beats token_subset beats alias_match; each rule fires", () => {
+    const a1 = store.createNode({ type: "person", title: "Ana Popescu", origin: "o" });
+    const a2 = store.createNode({ type: "person", title: " ana  POPESCU ", origin: "o" }); // R1 with a1
+    const a3 = store.createNode({ type: "person", title: "Ana", origin: "o" }); // R2 with a1/a2
+    const s1 = store.createNode({ type: "person", title: "Sis", origin: "o" });
+    store.addAlias(a1.id, "sis"); // R3: alias(a1) == title(s1)
+    const added = store.suggestIdentities("person");
+    expect(added).toBeGreaterThanOrEqual(4);
+
+    const db = new Database(join(dir, "memory.db"), { readonly: true });
+    const rows = db.query("SELECT a, b, evidence FROM identity_pending").all() as {
+      a: string;
+      b: string;
+      evidence: string;
+    }[];
+    db.close();
+    const ev = (x: NodeId, y: NodeId) =>
+      rows.find((r) => (r.a === x && r.b === y) || (r.a === y && r.b === x))?.evidence;
+    expect(ev(a1.id, a2.id)).toBe("title_match"); // R1 wins over R2 subset
+    expect(ev(a1.id, a3.id)).toBe("token_subset"); // Ana ⊂ Ana Popescu
+    expect(ev(a1.id, s1.id)).toBe("alias_match"); // sis == Sis
+  });
+
+  test("exclusions: never, non-active, already-pending, no_match, merged_into", () => {
+    const a = store.createNode({ type: "person", title: "Mira Voss", origin: "o" });
+    const b = store.createNode({ type: "person", title: "mira voss", origin: "o" });
+    const hidden = store.createNode({ type: "person", title: "Mira  Voss ", origin: "o" });
+    store.setSurfacing(hidden.id, "never"); // I2: cannot enter questions
+    const arch = store.createNode({ type: "person", title: "MIRA VOSS", origin: "o" });
+    store.transition(arch.id, "archived");
+
+    expect(store.suggestIdentities("person")).toBe(1); // only (a,b)
+    expect(store.suggestIdentities("person")).toBe(0); // already pending — never re-added
+
+    // craft closure edges between two fresh actives
+    const c = store.createNode({ type: "person", title: "Radu Ilie", origin: "o" });
+    const d = store.createNode({ type: "person", title: "radu ilie", origin: "o" });
+    store.link(c.id, d.id, "no_match"); // owner already said different (I9 half a, pre-C)
+    expect(store.suggestIdentities("person")).toBe(0);
+
+    const e = store.createNode({ type: "person", title: "Vlad Pop", origin: "o" });
+    const f = store.createNode({ type: "person", title: "vlad pop", origin: "o" });
+    store.link(e.id, f.id, "merged_into"); // corrupt-but-closed pair: still excluded
+    expect(store.suggestIdentities("person")).toBe(0);
+    expect(a.id).not.toBe(b.id);
+  });
+
+  test("cap respected; single-char tokens never make R2 pairs", () => {
+    for (let i = 0; i < 5; i++) store.createNode({ type: "person", title: "Same Name", origin: "o" });
+    expect(store.suggestIdentities("person", 3)).toBe(3); // 10 possible pairs, capped
+    store.createNode({ type: "note", title: "A B", origin: "o" });
+    store.createNode({ type: "note", title: "A", origin: "o" }); // 1-char tokens: no R2
+    expect(store.suggestIdentities("note")).toBe(0);
+  });
+});
+
+describe("the queue's identity kind (Pending union, v0.2.0)", () => {
+  test("identity questions ride last, oldest first, with evidence — and I2 holds post-hoc", () => {
+    store.registerType({ name: "memory", bornStatus: "proposed" });
+    store.propose({ type: "memory", title: "A proposal", body: "", origin: "t" });
+    const p1 = store.createNode({ type: "person", title: "Ilinca Rad", origin: "o" });
+    const p2 = store.createNode({ type: "person", title: "ilinca rad", origin: "o" });
+    store.suggestIdentities("person");
+
+    const q = store.pendingQueue();
+    expect(q.map((x) => x.kind)).toEqual(["proposal", "identity"]);
+    const idq = q[1];
+    if (idq?.kind !== "identity") throw new Error("expected identity item");
+    expect([idq.a.id, idq.b.id].sort()).toEqual([p1.id, p2.id].sort());
+    expect(idq.evidence).toBe("title_match");
+    expect(store.doctor().pendingCount).toBe(2); // proposal + question
+
+    store.setSurfacing(p2.id, "never"); // surfacing changed AFTER the suggestion
+    expect(store.pendingQueue().map((x) => x.kind)).toEqual(["proposal"]); // hidden, not shown
+    expect(store.doctor().pendingCount).toBe(1); // doctor matches the queue
+  });
+});

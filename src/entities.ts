@@ -106,3 +106,124 @@ export function survivorOf(ctx: Ctx, id: NodeId): Node {
   }
   return node;
 }
+
+// --- Phase B: questions (docs/ENTITIES.md) ---
+
+export type IdentityEvidence = "title_match" | "token_subset" | "alias_match";
+
+/** R2 material: the title's tokens ≥2 chars, or null when none qualify. */
+function tokenSet(title: string): Set<string> | null {
+  const toks = normalizeText(title)
+    .split(" ")
+    .filter((t) => t.length >= 2);
+  return toks.length === 0 ? null : new Set(toks);
+}
+
+function strictSubset(a: Set<string>, b: Set<string>): boolean {
+  if (a.size >= b.size) return false;
+  for (const t of a) if (!b.has(t)) return false;
+  return true;
+}
+
+/** A pair is closed to questions when a no_match (I9) or merged_into edge
+ * exists between the two in either direction, or the question is already
+ * pending. */
+function pairClosed(ctx: Ctx, a: string, b: string): boolean {
+  const pending = ctx.mem.get<{ a: string }>("SELECT a FROM identity_pending WHERE a = ? AND b = ?", [a, b]);
+  if (pending !== null) return true;
+  const edge = ctx.mem.get<{ id: string }>(
+    `SELECT id FROM edges WHERE type IN ('no_match', 'merged_into')
+       AND ((source = ? AND target = ?) OR (source = ? AND target = ?)) LIMIT 1`,
+    [a, b, b, a],
+  );
+  return edge !== null;
+}
+
+/**
+ * Deterministic candidate generation — owner- or host-scheduled, never
+ * ambient (owner-confirmed). Scans active, non-never nodes of one type with
+ * rules R1 (title_match) > R2 (token_subset) > R3 (alias_match) — highest
+ * evidence wins per pair — and writes NEW questions to identity_pending.
+ * Skips pairs already pending, no_match pairs (I9), and merged_into pairs.
+ * Returns the number of questions added (≤ cap). Audited content-free.
+ */
+export function suggestIdentities(ctx: Ctx, type: string, cap = 20): number {
+  const rows = ctx.mem.query<{ id: string; title: string }>(
+    "SELECT id, title FROM nodes WHERE type = ? AND status = 'active' AND surfacing != 'never' ORDER BY id",
+    [type],
+  );
+  const aliasRows = ctx.mem.query<{ alias: string; node_id: string }>(
+    "SELECT a.alias, a.node_id FROM aliases a JOIN nodes n ON n.id = a.node_id WHERE n.type = ?",
+    [type],
+  );
+  const aliasesBy = new Map<string, Set<string>>();
+  for (const r of aliasRows) {
+    const set = aliasesBy.get(r.node_id) ?? new Set<string>();
+    set.add(r.alias);
+    aliasesBy.set(r.node_id, set);
+  }
+
+  const norm = rows.map((r) => ({
+    id: r.id,
+    title: normalizeText(r.title),
+    tokens: tokenSet(r.title),
+    aliases: aliasesBy.get(r.id) ?? new Set<string>(),
+  }));
+
+  let added = 0;
+  const at = ctx.now().toISOString();
+  for (let i = 0; i < norm.length && added < cap; i++) {
+    for (let j = i + 1; j < norm.length && added < cap; j++) {
+      const x = norm[i];
+      const y = norm[j];
+      if (x === undefined || y === undefined) continue;
+      let evidence: IdentityEvidence | null = null;
+      if (x.title === y.title) {
+        evidence = "title_match"; // R1
+      } else if (
+        x.tokens !== null &&
+        y.tokens !== null &&
+        (strictSubset(x.tokens, y.tokens) || strictSubset(y.tokens, x.tokens))
+      ) {
+        evidence = "token_subset"; // R2
+      } else if (
+        x.aliases.has(y.title) ||
+        y.aliases.has(x.title) ||
+        [...x.aliases].some((al) => y.aliases.has(al))
+      ) {
+        evidence = "alias_match"; // R3
+      }
+      if (evidence === null) continue;
+      if (pairClosed(ctx, x.id, y.id)) continue;
+      ctx.mem.run("INSERT INTO identity_pending (a, b, evidence, created) VALUES (?, ?, ?, ?)", [
+        x.id, // rows are id-ordered, so a < b holds
+        y.id,
+        evidence,
+        at,
+      ]);
+      added++;
+    }
+  }
+  if (added > 0) audit(ctx, "system", "identity.suggest", "", true, { type, added });
+  return added;
+}
+
+/** Open identity questions for the queue: both sides still active and
+ * non-never (I2 holds even when surfacing changed after the suggestion),
+ * oldest first. */
+export function identityPending(
+  ctx: Ctx,
+): { a: Node; b: Node; evidence: IdentityEvidence; created: string }[] {
+  const rows = ctx.mem.query<{ a: string; b: string; evidence: string; created: string }>(
+    "SELECT a, b, evidence, created FROM identity_pending ORDER BY created ASC, a ASC",
+  );
+  const out: { a: Node; b: Node; evidence: IdentityEvidence; created: string }[] = [];
+  for (const r of rows) {
+    const a = mustGet(ctx, r.a as NodeId);
+    const b = mustGet(ctx, r.b as NodeId);
+    if (a.status !== "active" || b.status !== "active") continue;
+    if (a.surfacing === "never" || b.surfacing === "never") continue;
+    out.push({ a, b, evidence: r.evidence as IdentityEvidence, created: r.created });
+  }
+  return out;
+}

@@ -13,6 +13,7 @@
  * deduplication, not censorship. (Documented behavior, pinned by test.)
  */
 
+import { type IdentityEvidence, identityPending } from "./entities.ts";
 import { lexicalCandidates, termsFromText, titleNamed } from "./recall.ts";
 import {
   audit,
@@ -63,13 +64,26 @@ export interface EditEnvelope {
   readonly created: string;
 }
 
-/** One reviewable item in the consent queue. */
-export interface Pending {
-  readonly node: Node;
-  /** non-null: a parked edit to an active node rather than a new proposal. */
-  readonly edit: EditEnvelope | null;
-  readonly conflicts: readonly Conflict[];
-}
+/**
+ * One reviewable item in the consent queue — the single place a host
+ * renders "everything awaiting the owner" (v0.2.0: a tagged union; the
+ * identity kind is pair-keyed and decided via decideIdentity, Phase C).
+ */
+export type Pending =
+  | { readonly kind: "proposal"; readonly node: Node; readonly conflicts: readonly Conflict[] }
+  | {
+      readonly kind: "edit";
+      readonly node: Node;
+      readonly edit: EditEnvelope;
+      readonly conflicts: readonly Conflict[];
+    }
+  | {
+      readonly kind: "identity";
+      readonly a: Node;
+      readonly b: Node;
+      readonly evidence: IdentityEvidence;
+      readonly created: string;
+    };
 
 /**
  * The owner's verdict. approve_superseding is compound and ordered (I5):
@@ -239,8 +253,8 @@ function editEnvelopeFor(ctx: Ctx, id: NodeId): EditEnvelope | null {
 
 // --- the queue + conflict hints ---
 
-/** Everything awaiting the owner: proposals oldest-first, then parked edits
- * oldest-first — each with its conflict hints. */
+/** Everything awaiting the owner: proposals, then parked edits, then
+ * identity questions — each kind oldest-first (ENTITIES.md ordering). */
 export function pendingQueue(ctx: Ctx): Pending[] {
   const out: Pending[] = [];
   const proposed = ctx.mem.query<{ id: string }>(
@@ -248,7 +262,7 @@ export function pendingQueue(ctx: Ctx): Pending[] {
   );
   for (const r of proposed) {
     const node = mustGet(ctx, r.id as NodeId);
-    out.push({ node, edit: null, conflicts: conflictsFor(ctx, node.id) });
+    out.push({ kind: "proposal", node, conflicts: conflictsFor(ctx, node.id) });
   }
   const edits = ctx.mem.query<{ node_id: string }>(
     `SELECT pe.node_id FROM pending_edits pe JOIN nodes n ON n.id = pe.node_id
@@ -256,7 +270,12 @@ export function pendingQueue(ctx: Ctx): Pending[] {
   );
   for (const r of edits) {
     const node = mustGet(ctx, r.node_id as NodeId);
-    out.push({ node, edit: editEnvelopeFor(ctx, node.id), conflicts: conflictsFor(ctx, node.id) });
+    const edit = editEnvelopeFor(ctx, node.id);
+    if (edit === null) continue; // raced away; defensive
+    out.push({ kind: "edit", node, edit, conflicts: conflictsFor(ctx, node.id) });
+  }
+  for (const q of identityPending(ctx)) {
+    out.push({ kind: "identity", a: q.a, b: q.b, evidence: q.evidence, created: q.created });
   }
   return out;
 }

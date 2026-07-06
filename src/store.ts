@@ -227,6 +227,11 @@ export class Store implements StoreContract {
     return entities.survivorOf(this.guard(), id);
   }
 
+  /** Write identity questions from the deterministic rules (never ambient). */
+  suggestIdentities(type: string, cap?: number): number {
+    return entities.suggestIdentities(this.guard(), type, cap);
+  }
+
   // --- lineage (landed with the cascade; SCHEMA.md derivations) ---
 
   /** Register a derived artifact's sources at creation time. */

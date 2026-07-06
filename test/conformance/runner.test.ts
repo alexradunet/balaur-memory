@@ -128,6 +128,11 @@ for (const file of readdirSync(DIR).filter((f) => f.endsWith(".scenario.json")))
                   decision as Parameters<Store["decide"]>[1],
                 );
               }
+              case "suggestIdentities": {
+                const n = store.suggestIdentities(step["type"] as string, step["cap"] as number | undefined);
+                if (step.as) outcomes.set(step.as, String(n));
+                return undefined;
+              }
               case "addAlias":
                 store.addAlias(
                   resolveRef(bindings, step["id"] as string) as Node["id"],
