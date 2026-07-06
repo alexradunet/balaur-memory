@@ -7,7 +7,7 @@
 import type { SqlDb } from "./adapter.ts";
 import { ulid } from "./ulid.ts";
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 const MEMORY_DDL = `
 PRAGMA journal_mode = WAL;
@@ -145,6 +145,17 @@ CREATE TABLE IF NOT EXISTS memory_history (
 ) STRICT;
 `;
 
+// --- v4: the planning arc (docs/PLANNING.md) ---
+// Nodes gain an appointment with the future: when_at, the world-time
+// moment a node is scheduled for / happens at (NULL = undated — most
+// memories). History snapshots carry it too — a reminder's time is
+// content, and "when did I move this deadline" is a history question.
+const V4_DDL = `
+ALTER TABLE nodes ADD COLUMN when_at TEXT;
+ALTER TABLE memory_history ADD COLUMN when_at TEXT;
+CREATE INDEX IF NOT EXISTS idx_nodes_when ON nodes(when_at) WHERE when_at IS NOT NULL;
+`;
+
 /** Apply the memory.db baseline + versioned deltas (idempotent). Fresh
  * stores land directly on SCHEMA_VERSION; older stores upgrade in order.
  * Never edit an applied delta — append and bump (CODING.md). */
@@ -154,6 +165,7 @@ export function migrateMemoryDb(db: SqlDb, now: () => Date): void {
   if (version === null) {
     db.exec(V2_DDL);
     db.exec(V3_DDL);
+    db.exec(V4_DDL);
     const at = now().toISOString();
     db.run("INSERT INTO meta (key, value) VALUES ('schema_version', ?)", [String(SCHEMA_VERSION)]);
     db.run("INSERT INTO meta (key, value) VALUES ('store_id', ?)", [ulid(now().getTime())]);
@@ -168,6 +180,10 @@ export function migrateMemoryDb(db: SqlDb, now: () => Date): void {
   if (v < 3) {
     db.exec(V3_DDL);
     db.run("UPDATE meta SET value = '3' WHERE key = 'schema_version'");
+  }
+  if (v < 4) {
+    db.exec(V4_DDL);
+    db.run("UPDATE meta SET value = '4' WHERE key = 'schema_version'");
   }
 }
 

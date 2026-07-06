@@ -32,7 +32,8 @@ ratification.
 | temporal — design doc (TEMPORAL.md) | bi-temporal edge validity + forget-aware memory history; I15/I16 | DONE (PR #16, merged) |
 | temporal A — validity | schema v3, link validity windows, closeEdge (I15), asOf time travel on traversal + the peer card | DONE (PR #17, merged) |
 | temporal B — history | the three capture moments, history(id), the forget-cascade amendment (I16) | DONE (PR #18, merged) |
-| planning — design doc (PLANNING.md) | when_at, agenda, dueCandidates, dayAnchor; tasks as memories; I17 | in review (PR #19) |
+| planning — design doc (PLANNING.md) | when_at, agenda, dueCandidates, dayAnchor; tasks as memories; I17 | DONE (PR #19, merged) |
+| planning A — the appointment | schema v4, when through the write paths, agenda, the due lens, dayAnchor (I17) | in review (PR #20) |
 
 13 of 14 invariants are conformance-pinned (I14, single writer, holds by
 construction). `Store implements StoreContract` is compiler-checked.

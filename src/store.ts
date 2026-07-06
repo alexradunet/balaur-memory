@@ -113,7 +113,10 @@ export class Store implements StoreContract {
   /** Edits an ACTIVE owner-authored node. CAREFUL: `props`, when present,
    * REPLACES the whole object — read, modify, write for partial updates
    * (deep-merge is its own footgun; the replacement is loud on purpose). */
-  updateNode(id: NodeId, patch: { title?: string; body?: string; props?: Props }): Node {
+  updateNode(
+    id: NodeId,
+    patch: { title?: string; body?: string; props?: Props; when?: string | null },
+  ): Node {
     return spine.updateNode(this.guard(), id, patch);
   }
 
@@ -188,6 +191,16 @@ export class Store implements StoreContract {
   /** Cross-type recall over all active, surfaceable knowledge. */
   search(terms: readonly string[], limit?: number): Node[] {
     return recallMod.search(this.guard(), terms, limit);
+  }
+
+  /** The agenda window — ambient recall over time (PLANNING.md, I17/I2). */
+  agenda(from: string, to: string, opts?: { type?: string; limit?: number }): Node[] {
+    return recallMod.agenda(this.guard(), from, to, opts);
+  }
+
+  /** Get-or-create the day node for a UTC date (PLANNING.md). */
+  dayAnchor(date: string): Node {
+    return spine.dayAnchor(this.guard(), date);
   }
 
   /** Maintain the vector sidecar — host-computed vectors only (vectors in,

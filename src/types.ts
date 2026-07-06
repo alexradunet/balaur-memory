@@ -43,6 +43,10 @@ export interface Node {
   readonly useCount: number;
   readonly lastUsed: string | null; // ISO-8601 UTC
   readonly reviewAt: string | null; // quarantine re-review date
+  /** The appointment with the future (PLANNING.md): the world-time moment
+   * this node is scheduled for / happens at. null = undated (I17:
+   * declared, never inferred). */
+  readonly when: string | null;
   readonly created: string;
   readonly updated: string;
 }

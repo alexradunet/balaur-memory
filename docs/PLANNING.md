@@ -1,7 +1,10 @@
 # PLANNING.md — tasks, events, reminders: planning rooted in memory (design)
 
-- **Status:** DRAFT — awaiting owner ratification of the open questions
-  below. Implementation begins after this document merges.
+- **Status:** ARC COMPLETE — the owner confirmed all five open questions
+  (`when_at` naming; `ask` stays off the agenda; the one consent-gated
+  `task` type; no automatic day-anchoring; `dueCandidates` cap 20,
+  oldest-first, no cutoff). Phase A shipped in **PR #20** (schema v4,
+  v0.4.0); I17 is conformance-pinned.
 - **Ships as:** **schema_version 4** and **v0.4.0**. One new invariant
   (I17). No API breaks: one nullable column (on two tables), one new read,
   one new lens, one new verb, one optional field on three write paths.

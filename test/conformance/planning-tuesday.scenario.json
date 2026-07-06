@@ -1,0 +1,129 @@
+{
+  "name": "the Tuesday agenda: appointments declared, gated, windowed, rescheduled, anchored (I17)",
+  "invariants": ["I17", "I2"],
+  "clock": "2026-07-05T12:00:00.000Z",
+  "steps": [
+    { "op": "registerType", "name": "task", "bornStatus": "proposed" },
+    { "op": "registerType", "name": "event", "bornStatus": "active" },
+    {
+      "op": "createNode",
+      "as": "callAna",
+      "input": {
+        "type": "task",
+        "title": "Call Ana about the trip",
+        "when": "2026-07-07T10:00:00.000Z",
+        "origin": "o"
+      }
+    },
+    {
+      "op": "propose",
+      "as": "flights",
+      "proposal": {
+        "type": "task",
+        "title": "Book flights",
+        "body": "",
+        "when": "2026-07-08T09:00:00.000Z",
+        "origin": "turn:t1"
+      }
+    },
+    { "op": "decide", "id": "@flights.id", "decision": { "kind": "approve" } },
+    {
+      "op": "proposeEdit",
+      "id": "@flights.id",
+      "change": { "fields": { "when": "2026-07-10T09:00:00.000Z" }, "origin": "turn:r1" }
+    },
+    { "op": "decide", "id": "@flights.id", "decision": { "kind": "approve" } },
+    {
+      "op": "createNode",
+      "as": "lisbon",
+      "input": {
+        "type": "event",
+        "title": "Flight to Lisbon",
+        "when": "2026-07-14T06:00:00.000Z",
+        "origin": "o"
+      }
+    },
+    {
+      "op": "createNode",
+      "as": "passport",
+      "input": {
+        "type": "task",
+        "title": "Renew passport",
+        "when": "2026-07-01T09:00:00.000Z",
+        "origin": "o"
+      }
+    },
+    {
+      "op": "createNode",
+      "as": "private",
+      "input": {
+        "type": "task",
+        "title": "Private reminder",
+        "when": "2026-07-09T08:00:00.000Z",
+        "origin": "o"
+      }
+    },
+    { "op": "setSurfacing", "id": "@private.id", "to": "ask" },
+    {
+      "op": "createNode",
+      "as": "secret",
+      "input": {
+        "type": "task",
+        "title": "Secret errand",
+        "when": "2026-07-09T09:00:00.000Z",
+        "surfacing": "never",
+        "origin": "o"
+      }
+    },
+    {
+      "op": "propose",
+      "proposal": {
+        "type": "task",
+        "title": "Maybe later",
+        "body": "",
+        "when": "2026-07-09T10:00:00.000Z",
+        "origin": "turn:t2"
+      }
+    },
+    {
+      "op": "createNode",
+      "input": { "type": "task", "title": "Bad date", "when": "sometime", "origin": "o" },
+      "expectError": "props_invalid"
+    },
+    { "op": "dayAnchor", "as": "day14", "date": "2026-07-14" },
+    { "op": "dayAnchor", "date": "2026-07-14" },
+    { "op": "link", "source": "@lisbon.id", "target": "@day14.id", "type": "scheduled_on" }
+  ],
+  "expect": [
+    {
+      "agenda": ["2026-07-06", "2026-07-13"],
+      "titlesInOrder": ["Call Ana about the trip", "Book flights"]
+    },
+    {
+      "agenda": ["2026-07-01", "2026-08-01"],
+      "titlesInOrder": ["Renew passport", "Call Ana about the trip", "Book flights", "Flight to Lisbon"]
+    },
+    {
+      "agenda": ["2026-07-01", "2026-08-01"],
+      "type": "event",
+      "titlesInOrder": ["Flight to Lisbon"]
+    },
+    {
+      "history": "flights",
+      "length": 1,
+      "whens": ["2026-07-08T09:00:00.000Z"],
+      "actions": ["consent.edit_applied"],
+      "origins": ["turn:r1"]
+    },
+    {
+      "sql": "SELECT when_at FROM nodes WHERE id = ?",
+      "params": ["@flights.id"],
+      "equals": "2026-07-10T09:00:00.000Z"
+    },
+    {
+      "sql": "SELECT COUNT(*) FROM nodes WHERE type = 'day' AND json_extract(props, '$.date') = '2026-07-14'",
+      "equals": 1
+    },
+    { "sql": "SELECT COUNT(*) FROM edges WHERE type = 'scheduled_on'", "equals": 1 }
+  ]
+}
