@@ -1,10 +1,35 @@
 {
   "name": "balaur-memory",
-  "version": "0.4.2",
-  "description": "A consent-gated, lineage-tracked, forgettable memory layer for personal AI. One SQLite file, no services, no models.",
+  "version": "0.4.3",
+  "description": "A consent-gated, lineage-tracked, forgettable memory layer for personal AI. One SQLite file, no services, no models. Bun-only by design.",
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "module": "src/index.ts",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "!src/**/*.test.ts",
+    "docs/SCHEMA.md",
+    "docs/HOSTING.md"
+  ],
+  "engines": {
+    "bun": ">=1.2"
+  },
+  "keywords": [
+    "memory",
+    "personal-ai",
+    "sqlite",
+    "local-first",
+    "consent",
+    "bun",
+    "knowledge-graph",
+    "life-os"
+  ],
   "repository": "github:alexradunet/balaur-memory",
   "scripts": {
     "check": "bunx tsc --noEmit && bunx biome check . && bun test",
