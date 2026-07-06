@@ -76,6 +76,7 @@ the schema contract and the TypeScript API.
 | [docs/DESIGN.md](docs/DESIGN.md) | Architecture: sync-first, vectors-in, ranking blend, module map |
 | [docs/CODING.md](docs/CODING.md) | The rules: strict TS, zero deps, SQL discipline, tests |
 | [docs/CONFORMANCE.md](docs/CONFORMANCE.md) | Scenario-file suite any implementation can run |
+| [docs/FIELD.md](docs/FIELD.md) | The 2026 landscape survey: where this library stands, the steal ledger |
 | [docs/HISTORY.md](docs/HISTORY.md) | How the library was built — the phase log |
 | [docs/adr/](docs/adr/) | Decision records (0001: Bun + TypeScript) |
 

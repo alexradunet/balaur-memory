@@ -33,7 +33,8 @@ ratification.
 | temporal A — validity | schema v3, link validity windows, closeEdge (I15), asOf time travel on traversal + the peer card | DONE (PR #17, merged) |
 | temporal B — history | the three capture moments, history(id), the forget-cascade amendment (I16) | DONE (PR #18, merged) |
 | planning — design doc (PLANNING.md) | when_at, agenda, dueCandidates, dayAnchor; tasks as memories; I17 | DONE (PR #19, merged) |
-| planning A — the appointment | schema v4, when through the write paths, agenda, the due lens, dayAnchor (I17) | in review (PR #20) |
+| planning A — the appointment | schema v4, when through the write paths, agenda, the due lens, dayAnchor (I17) | DONE (PR #20, merged; tagged v0.4.0) |
+| field survey (FIELD.md) | the 2026 landscape, where we lead, the steal ledger, positioning | in review (PR #21) |
 
 13 of 14 invariants are conformance-pinned (I14, single writer, holds by
 construction). `Store implements StoreContract` is compiler-checked.
