@@ -1,0 +1,50 @@
+{
+  "name": "golden two-Anas: the compound merge — rewire, fold, chain, content-preserving husk",
+  "invariants": ["I2", "I7"],
+  "clock": "2026-07-05T12:00:00.000Z",
+  "steps": [
+    { "op": "registerType", "name": "person", "bornStatus": "active" },
+    { "op": "registerType", "name": "note", "bornStatus": "active" },
+    {
+      "op": "createNode",
+      "as": "keep",
+      "input": { "type": "person", "title": "Ana Popescu", "body": "the sister", "origin": "o" }
+    },
+    {
+      "op": "createNode",
+      "as": "dup",
+      "input": { "type": "person", "title": "Ana", "body": "short-name double", "origin": "o" }
+    },
+    { "op": "addAlias", "id": "@dup.id", "alias": "sis" },
+    {
+      "op": "createNode",
+      "as": "note1",
+      "input": { "type": "note", "title": "Birthday plan", "origin": "o" }
+    },
+    { "op": "link", "source": "@note1.id", "target": "@dup.id" },
+    { "op": "suggestIdentities", "as": "found", "type": "person" },
+    { "op": "decideIdentity", "keep": "@keep.id", "other": "@dup.id", "verdict": "same" }
+  ],
+  "expect": [
+    { "outcome": "found", "equals": "1" },
+    { "sql": "SELECT status FROM nodes WHERE id = ?", "params": ["@keep.id"], "equals": "active" },
+    { "sql": "SELECT status FROM nodes WHERE id = ?", "params": ["@dup.id"], "equals": "merged" },
+    { "sql": "SELECT body FROM nodes WHERE id = ?", "params": ["@dup.id"], "equals": "short-name double" },
+    {
+      "sql": "SELECT COUNT(*) FROM edges WHERE source = ? AND target = ? AND type = 'merged_into'",
+      "params": ["@dup.id", "@keep.id"],
+      "equals": 1
+    },
+    {
+      "sql": "SELECT COUNT(*) FROM edges WHERE source = ? AND target = ? AND type = 'links'",
+      "params": ["@note1.id", "@keep.id"],
+      "equals": 1
+    },
+    { "sql": "SELECT COUNT(*) FROM aliases WHERE node_id = ?", "params": ["@keep.id"], "equals": 2 },
+    { "sql": "SELECT COUNT(*) FROM aliases WHERE node_id = ?", "params": ["@dup.id"], "equals": 0 },
+    { "sql": "SELECT COUNT(*) FROM identity_pending", "equals": 0 },
+    { "sql": "SELECT COUNT(*) FROM audit_log WHERE meta LIKE '%Popescu%' OR meta LIKE '%sis%'", "equals": 0 },
+    { "recall": { "terms": ["ana"], "type": "person" }, "titles": ["Ana Popescu"] },
+    { "sqlIndex": "SELECT COUNT(*) FROM nodes_fts WHERE id = ?", "params": ["@dup.id"], "equals": 0 }
+  ]
+}

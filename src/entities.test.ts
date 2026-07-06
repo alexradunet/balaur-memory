@@ -244,3 +244,122 @@ describe("the queue's identity kind (Pending union, v0.2.0)", () => {
     expect(store.doctor().pendingCount).toBe(1); // doctor matches the queue
   });
 });
+
+describe("decideIdentity: the golden two-Anas merge (Phase C)", () => {
+  test("rewire + fold + chain + husk, end to end", () => {
+    const keep = store.createNode({ type: "person", title: "Ana Popescu", body: "the sister", origin: "o" });
+    const dup = store.createNode({
+      type: "person",
+      title: "Ana",
+      body: "same person, short name",
+      origin: "o",
+    });
+    store.addAlias(dup.id, "sis");
+    const note = store.createNode({ type: "note", title: "Birthday plan", origin: "o" });
+    const shared = store.createNode({ type: "note", title: "Shared note", origin: "o" });
+    store.link(note.id, dup.id); // will rewire to keep
+    store.link(shared.id, keep.id);
+    store.link(shared.id, dup.id); // will COLLIDE after rewire → dropped, not duplicated
+    store.link(keep.id, dup.id); // self-loop-to-be → dropped
+    store.putVector(dup.id, "m1", new Float32Array([1, 0]));
+    store.suggestIdentities("person");
+    expect(store.pendingQueue().some((q) => q.kind === "identity")).toBe(true);
+
+    const survivor = store.decideIdentity(keep.id, dup.id, "same");
+    expect(survivor.id).toBe(keep.id);
+    expect(survivor.status).toBe("active");
+
+    const husk = store.getNode(dup.id);
+    expect(husk.status).toBe("merged");
+    expect(husk.body).toBe("same person, short name"); // content-preserving
+    expect(store.survivorOf(dup.id).id).toBe(keep.id); // chained
+
+    // names folded: dup title + alias resolve to the survivor
+    expect(store.resolveRef("person", "Ana").map((n) => n.id)).toEqual([keep.id]);
+    expect(store.resolveRef("person", "sis").map((n) => n.id)).toEqual([keep.id]);
+    expect(store.aliasesOf(keep.id).sort()).toEqual(["ana", "sis"]);
+    expect(store.aliasesOf(dup.id)).toEqual([]); // husk holds no names
+
+    // edges: rewired, deduped, no self-loops
+    const hood = store.neighborhood(keep.id).map((n) => n.id);
+    expect(hood).toContain(note.id);
+    expect(hood).toContain(shared.id);
+    const db = new Database(join(dir, "memory.db"), { readonly: true });
+    const dupEdges = db
+      .query("SELECT COUNT(*) AS c FROM edges WHERE (source = ? OR target = ?) AND type != 'merged_into'")
+      .get(dup.id, dup.id) as { c: number };
+    const sharedPair = db
+      .query("SELECT COUNT(*) AS c FROM edges WHERE source = ? AND target = ? AND type = 'links'")
+      .get(shared.id, keep.id) as { c: number };
+    const leak = db.query("SELECT COUNT(*) AS c FROM audit_log WHERE meta LIKE '%Popescu%'").get() as {
+      c: number;
+    };
+    db.close();
+    expect(dupEdges.c).toBe(0); // only the merged_into chain remains on the husk
+    expect(sharedPair.c).toBe(1); // collision dropped, not duplicated
+    expect(leak.c).toBe(0); // I7 through the merge
+
+    // out of every surface: queue, recall, vectors
+    expect(store.pendingQueue()).toHaveLength(0);
+    expect(store.recall(["ana"]).map((n) => n.id)).toEqual([keep.id]); // folded alias hits the survivor only
+    expect(store.recall([], { queryVector: new Float32Array([1, 0]), model: "m1" })).toHaveLength(0);
+  });
+
+  test("guards: distinct, active, same type, never-surfaced, husk targets", () => {
+    const a = store.createNode({ type: "person", title: "P One", origin: "o" });
+    const b = store.createNode({ type: "person", title: "P Two", origin: "o" });
+    const n = store.createNode({ type: "note", title: "Not a person", origin: "o" });
+    expect(() => store.decideIdentity(a.id, a.id, "same")).toThrow("itself");
+    expect(() => store.decideIdentity(a.id, n.id, "same")).toThrow("one node type");
+    const hidden = store.createNode({ type: "person", title: "Hidden P", origin: "o" });
+    store.setSurfacing(hidden.id, "never");
+    expect(() => store.decideIdentity(a.id, hidden.id, "same")).toThrow("I2");
+    store.transition(b.id, "archived");
+    expect(() => store.decideIdentity(a.id, b.id, "same")).toThrow("ACTIVE");
+    const c = store.createNode({ type: "person", title: "P Three", origin: "o" });
+    const d = store.createNode({ type: "person", title: "P Four", origin: "o" });
+    store.decideIdentity(c.id, d.id, "same");
+    expect(() => store.decideIdentity(c.id, d.id, "same")).toThrow("ACTIVE"); // husk can't re-merge
+  });
+
+  test("merged husks are forgettable (I8 amendment)", () => {
+    const keep = store.createNode({ type: "person", title: "Keeper Q", origin: "o" });
+    const dup = store.createNode({ type: "person", title: "keeper q", origin: "o" });
+    store.decideIdentity(keep.id, dup.id, "same");
+    const report = store.forget(dup.id); // the husk's content can still be destroyed
+    expect(report.tombstoned).toBe(dup.id);
+    expect(store.getNode(dup.id).status).toBe("forgotten");
+    expect(store.getNode(dup.id).body).toBe("");
+  });
+});
+
+describe("decideIdentity: no_match permanence (I9, both halves)", () => {
+  test("the Apple Photos test: answered means answered, forever", () => {
+    const a = store.createNode({ type: "person", title: "Ion Vasile", origin: "o" });
+    const b = store.createNode({ type: "person", title: "ion vasile", origin: "o" });
+    expect(store.suggestIdentities("person")).toBe(1);
+    expect(store.pendingQueue().some((q) => q.kind === "identity")).toBe(true);
+
+    store.decideIdentity(a.id, b.id, "different");
+    expect(store.pendingQueue()).toHaveLength(0); // the question is gone
+
+    // half (a): no candidate rule ever resurrects the pair
+    expect(store.suggestIdentities("person")).toBe(0);
+    expect(store.pendingQueue()).toHaveLength(0);
+
+    // half (b): a merge across the no_match edge is refused, both orders
+    expect(() => store.decideIdentity(a.id, b.id, "same")).toThrow("I9");
+    expect(() => store.decideIdentity(b.id, a.id, "same")).toThrow("I9");
+
+    const db = new Database(join(dir, "memory.db"), { readonly: true });
+    const edge = db
+      .query(
+        "SELECT COUNT(*) AS c FROM edges WHERE type = 'no_match' AND ((source = ? AND target = ?) OR (source = ? AND target = ?))",
+      )
+      .get(a.id, b.id, b.id, a.id) as { c: number };
+    db.close();
+    expect(edge.c).toBe(1);
+    expect(store.getNode(a.id).status).toBe("active"); // both untouched
+    expect(store.getNode(b.id).status).toBe("active");
+  });
+});

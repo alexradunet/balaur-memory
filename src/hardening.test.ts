@@ -228,6 +228,10 @@ describe("audit stays content-free — structural (review I7/#15)", () => {
     store.quarantine(p.node.id, "2027-01-01");
     store.transition(p.node.id, "active");
     store.recordDerivation("host:artifact:1", [p.node.id]);
+    const twinA = store.createNode({ type: "note", title: `${S} twin`, origin: "t" });
+    const twinB = store.createNode({ type: "note", title: ` ${S}  TWIN `, origin: "t" });
+    store.suggestIdentities("note");
+    store.decideIdentity(twinA.id, twinB.id, "same");
     store.forget(p.node.id);
     store.close();
 

@@ -62,12 +62,8 @@ can reimplement):
 | `I12-audit-coverage` | I12, I7 |
 | `I13-index-disposability` | I13 (delete → reopen → rebuild → identical recall) |
 
-Twelve of fourteen invariants are scenario-pinned. The remaining two:
+Thirteen of fourteen invariants are scenario-pinned. The remaining one:
 
-- **I9 (no_match permanence)** — reserved. The `no_match` edge type and its
-  semantics are contract, but nothing in the core library *writes* one yet;
-  the producer arrives with entity resolution (a people-graph feature, out
-  of the v0.1 core). The scenario lands with the producer.
 - **I14 (single writer)** — by construction, not by scenario: one Store
   instance owns writes, WAL permits external readers. A conformance test
   cannot prove host discipline; the invariant documents it.

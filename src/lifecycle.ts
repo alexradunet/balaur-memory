@@ -66,7 +66,9 @@ export interface ForgetReport {
   readonly needsOwner: readonly string[];
 }
 
-const FORGETTABLE = new Set(["active", "archived", "quarantined"]);
+// merged joins the set (ENTITIES.md I8 amendment): a husk still holds
+// content, and content destruction must remain available for it.
+const FORGETTABLE = new Set(["active", "archived", "quarantined", "merged"]);
 
 /**
  * Forget: the honest erasure cascade (I6). Tombstones content in place

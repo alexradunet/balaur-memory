@@ -51,9 +51,11 @@ place for a life to land.
 verified — the spine, recall (blend + vector fusion), the consent gate
 (AUDN routing, queue, four verdicts incl. supersede), lifecycle end-states
 (quarantine, the honest forget cascade), lineage, and the metadata-only
-doctor. `Store implements StoreContract` is compiler-checked; 12 of 14
-schema invariants are pinned by the conformance suite (I9 reserved for
-entity resolution, I14 by construction). Balaur remains the design source
+doctor. `Store implements StoreContract` is compiler-checked; 13 of 14
+schema invariants are pinned by the conformance suite (I14 by
+construction) — every invariant with a possible producer has one. The
+entity arc (ENTITIES.md) is complete: aliases, resolution, deterministic
+identity questions, and owner-decided merges with no_match permanence. Balaur remains the design source
 and keeps its own in-tree Go memory layer; the projects share lineage and
 (optionally, later) a schema — not code.
 

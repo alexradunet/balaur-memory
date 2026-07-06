@@ -1,10 +1,9 @@
 # ENTITIES.md — consent-gated identity resolution (design)
 
-- **Status:** Ratified. Phase A (names) shipped in PR #10; Phase B
-  (questions) shipped in PR #11 with the Pending union (v0.2.0). Owner
-  confirmed the three open questions (no implicit suggestIdentities;
-  aliases indexed via FTS extra; survivorOf ships). Phase C (verdicts)
-  remains.
+- **Status:** ARC COMPLETE. Phase A (names, PR #10), Phase B (questions +
+  the Pending union, PR #11, v0.2.0), Phase C (verdicts + I9, PR #12).
+  Phase D (entityContext, the peer-card primitive) remains optional, on
+  demand. Owner confirmed the three open questions.
 - **Pins:** I9 (`no_match` permanence) finally gets its producer. Ships as
   **schema_version 2** and **v0.2.0** (one deliberate breaking change:
   `Pending` becomes a tagged union).

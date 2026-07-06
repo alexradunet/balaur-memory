@@ -232,6 +232,11 @@ export class Store implements StoreContract {
     return entities.suggestIdentities(this.guard(), type, cap);
   }
 
+  /** The owner's identity verdict: the compound merge, or permanent no_match (I9). */
+  decideIdentity(keep: NodeId, other: NodeId, verdict: "same" | "different"): Node {
+    return entities.decideIdentity(this.guard(), keep, other, verdict);
+  }
+
   // --- lineage (landed with the cascade; SCHEMA.md derivations) ---
 
   /** Register a derived artifact's sources at creation time. */

@@ -120,6 +120,11 @@ export interface StoreContract {
    * alias) writing identity questions to the queue — owner/host-scheduled,
    * never ambient. Returns questions added (≤ cap). */
   suggestIdentities(type: string, cap?: number): number;
+  /** The owner's identity verdict. "same": the compound merge — survivor
+   * chosen by argument order, never a heuristic; the duplicate becomes a
+   * content-preserving merged husk. "different": permanent no_match (I9).
+   * Returns the kept node. */
+  decideIdentity(keep: NodeId, other: NodeId, verdict: "same" | "different"): Node;
 
   // --- lineage & vectors & measurement ---
 

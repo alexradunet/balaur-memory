@@ -11,7 +11,7 @@
  * (I7: an alias is content — usually a person's name).
  */
 
-import { audit, type Ctx, mustGet, reindexNode } from "./spine.ts";
+import { audit, type Ctx, insertEdge, mustGet, reindexNode } from "./spine.ts";
 import { MemoryError, type Node, type NodeId, normalizeText } from "./types.ts";
 
 /** Owner verb: record a name the node also answers to. Idempotent; the
@@ -226,4 +226,120 @@ export function identityPending(
     out.push({ a, b, evidence: r.evidence as IdentityEvidence, created: r.created });
   }
   return out;
+}
+
+// --- Phase C: verdicts (docs/ENTITIES.md) ---
+
+/** A no_match or merged_into edge in either direction closes the pair. */
+function closureEdge(ctx: Ctx, a: string, b: string, type: string): boolean {
+  const edge = ctx.mem.get<{ id: string }>(
+    `SELECT id FROM edges WHERE type = ?
+       AND ((source = ? AND target = ?) OR (source = ? AND target = ?)) LIMIT 1`,
+    [type, a, b, b, a],
+  );
+  return edge !== null;
+}
+
+function dropQuestion(ctx: Ctx, a: string, b: string): void {
+  ctx.mem.run("DELETE FROM identity_pending WHERE (a = ? AND b = ?) OR (a = ? AND b = ?)", [a, b, b, a]);
+}
+
+/**
+ * The owner's identity verdict (ENTITIES.md, Phase C). "same" runs the
+ * compound merge — survivor chosen BY THE OWNER via argument order, never a
+ * heuristic: rewire edges (keep's win on conflict; self-loops drop), fold
+ * other's title + aliases into keep (source='merge'), chain other →
+ * merged_into → keep and retire it as a content-preserving husk out of
+ * every surface. "different" writes the permanent no_match edge (I9).
+ * Like approve_superseding (I5), the sequence is ordered and audited step
+ * by step — a mid-sequence failure stops and surfaces, never silently
+ * rolls back audited owner actions.
+ */
+export function decideIdentity(ctx: Ctx, keep: NodeId, other: NodeId, verdict: "same" | "different"): Node {
+  if (keep === other) throw new MemoryError("conflict", "a node cannot be merged with itself");
+  const keeper = mustGet(ctx, keep);
+  const dup = mustGet(ctx, other);
+  if (keeper.status !== "active" || dup.status !== "active")
+    throw new MemoryError("invalid_transition", "identity verdicts apply to two ACTIVE nodes");
+  if (keeper.type !== dup.type) throw new MemoryError("conflict", "identity stays within one node type");
+  if (keeper.surfacing === "never" || dup.surfacing === "never")
+    throw new MemoryError("conflict", "never-surfaced nodes do not take identity verdicts (I2)");
+  if (closureEdge(ctx, keep, other, "no_match"))
+    throw new MemoryError("conflict", "the owner already ruled these distinct (no_match, I9)");
+
+  if (verdict === "different") {
+    insertEdge(ctx, keep, other, "no_match", "owner ruled distinct", "owner");
+    dropQuestion(ctx, keep, other);
+    audit(ctx, "owner", "identity.decide", keep, true, { verdict: "different", other });
+    return mustGet(ctx, keep);
+  }
+
+  // --- the compound merge, in order (each step audited) ---
+
+  // 1. Self-loop edges between the pair drop outright.
+  const dropped = ctx.mem.run(
+    "DELETE FROM edges WHERE (source = ? AND target = ?) OR (source = ? AND target = ?)",
+    [keep, other, other, keep],
+  ).changes;
+
+  // 2. Rewire: keep's existing edges win (UPDATE OR IGNORE skips unique
+  //    collisions); leftovers still pointing at the dup are collisions — drop.
+  const rewiredSrc = ctx.mem.run("UPDATE OR IGNORE edges SET source = ? WHERE source = ?", [
+    keep,
+    other,
+  ]).changes;
+  const rewiredTgt = ctx.mem.run("UPDATE OR IGNORE edges SET target = ? WHERE target = ?", [
+    keep,
+    other,
+  ]).changes;
+  const collisions = ctx.mem.run("DELETE FROM edges WHERE source = ? OR target = ?", [other, other]).changes;
+  audit(ctx, "owner", "identity.merge_rewire", keep, true, {
+    rewired: rewiredSrc + rewiredTgt,
+    dropped: dropped + collisions,
+  });
+
+  // 3. Fold names: dup's title + aliases become keep's aliases (source
+  //    'merge'), except any name equal to keep's own title. Dup's alias
+  //    rows go with it — the survivor holds the names now.
+  const keeperTitle = normalizeText(keeper.title);
+  const at = ctx.now().toISOString();
+  let folded = 0;
+  const names = [normalizeText(dup.title), ...aliasesOf(ctx, other)];
+  for (const name of names) {
+    if (name === "" || name === keeperTitle) continue;
+    const res = ctx.mem.run(
+      `INSERT INTO aliases (alias, node_id, source, created) VALUES (?, ?, 'merge', ?)
+       ON CONFLICT(alias, node_id) DO NOTHING`,
+      [name, keep, at],
+    );
+    folded += res.changes;
+  }
+  ctx.mem.run("DELETE FROM aliases WHERE node_id = ?", [other]);
+
+  // 4. Retire the dup: content-preserving husk, chained to its survivor,
+  //    out of every queue and surface.
+  ctx.mem.run("UPDATE nodes SET status = 'merged', review_at = NULL, updated = ? WHERE id = ?", [at, other]);
+  audit(ctx, "owner", "node.transition", other, true, { from: "active", to: "merged" });
+  insertEdge(ctx, other, keep, "merged_into", "identity verdict", "owner");
+  ctx.mem.run("DELETE FROM pending_edits WHERE node_id = ?", [other]);
+  ctx.mem.run("DELETE FROM identity_pending WHERE a = ? OR b = ?", [other, other]);
+  dropQuestion(ctx, keep, other);
+
+  // 5. Index: the husk leaves FTS and vectors; the survivor reindexes with
+  //    its folded names.
+  reindexNode(ctx, mustGet(ctx, other));
+  try {
+    ctx.idx.run("DELETE FROM vectors WHERE id = ?", [other]);
+  } catch {
+    audit(ctx, "system", "index.scrub", other, false);
+  }
+  reindexNode(ctx, mustGet(ctx, keep));
+
+  audit(ctx, "owner", "identity.merge", keep, true, {
+    over: other,
+    rewired: rewiredSrc + rewiredTgt,
+    dropped: dropped + collisions,
+    folded,
+  });
+  return mustGet(ctx, keep);
 }

@@ -133,6 +133,12 @@ for (const file of readdirSync(DIR).filter((f) => f.endsWith(".scenario.json")))
                 if (step.as) outcomes.set(step.as, String(n));
                 return undefined;
               }
+              case "decideIdentity":
+                return store.decideIdentity(
+                  resolveRef(bindings, step["keep"] as string) as Node["id"],
+                  resolveRef(bindings, step["other"] as string) as Node["id"],
+                  step["verdict"] as "same" | "different",
+                );
               case "addAlias":
                 store.addAlias(
                   resolveRef(bindings, step["id"] as string) as Node["id"],

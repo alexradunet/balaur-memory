@@ -165,8 +165,8 @@ CREATE TABLE vectors (
 | archived | soft-retired; recallable only by direct query | active | active, forgotten |
 | rejected | owner said no; terminal | proposed | — |
 | quarantined | actively suppressed everywhere; ask-twice; optional `review_at` | active | active, forgotten |
-| forgotten | content destroyed (tombstone); terminal | active, archived, quarantined | — |
-| merged | duplicate folded into a survivor; terminal alias | active, proposed | — |
+| forgotten | content destroyed (tombstone); terminal | active, archived, quarantined, merged | — |
+| merged | duplicate folded into a survivor; content-preserving husk | active | forgotten |
 
 ## Invariants (conformance fixtures reference these by number)
 
@@ -199,11 +199,14 @@ CREATE TABLE vectors (
 - **I7 — Content-free forget audit.** Audit entries for forget-class actions
   carry ids and counts only. No audit row anywhere carries node title/body
   text.
-- **I8 — Terminality.** `rejected`, `forgotten`, `merged` have no outgoing
-  transitions.
+- **I8 — Terminality.** `rejected` and `forgotten` have no outgoing
+  transitions. `merged` is terminal for the FSM and for identity verdicts,
+  with one deliberate exception: a husk still holds content, so `forget`
+  may destroy it (ENTITIES.md amendment).
 - **I9 — No re-litigation.** After a `no_match` edge exists between two
-  nodes, the library never again proposes them as duplicates/merge
-  candidates.
+  nodes (either direction): (a) no candidate rule ever re-inserts the pair
+  into `identity_pending`, and (b) `decideIdentity(..., "same")` on the
+  pair is refused. Answered means answered — the Apple Photos lesson.
 - **I10 — Provenance at birth.** Every insert into `nodes` sets `origin`
   (host-supplied; `''` only for owner-manual creations). `author` is set
   whenever content carries a third party's words.

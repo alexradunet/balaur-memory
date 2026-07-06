@@ -1,0 +1,35 @@
+{
+  "name": "I9: the Apple Photos test — a different verdict is permanent in both halves",
+  "invariants": ["I9"],
+  "clock": "2026-07-05T12:00:00.000Z",
+  "steps": [
+    { "op": "registerType", "name": "person", "bornStatus": "active" },
+    { "op": "createNode", "as": "a", "input": { "type": "person", "title": "Ion Vasile", "origin": "o" } },
+    { "op": "createNode", "as": "b", "input": { "type": "person", "title": "ion vasile", "origin": "o" } },
+    { "op": "suggestIdentities", "as": "first", "type": "person" },
+    { "op": "decideIdentity", "keep": "@a.id", "other": "@b.id", "verdict": "different" },
+    { "op": "suggestIdentities", "as": "rerun", "type": "person" },
+    {
+      "op": "decideIdentity",
+      "keep": "@a.id",
+      "other": "@b.id",
+      "verdict": "same",
+      "expectError": "conflict"
+    },
+    {
+      "op": "decideIdentity",
+      "keep": "@b.id",
+      "other": "@a.id",
+      "verdict": "same",
+      "expectError": "conflict"
+    }
+  ],
+  "expect": [
+    { "outcome": "first", "equals": "1" },
+    { "outcome": "rerun", "equals": "0" },
+    { "sql": "SELECT COUNT(*) FROM identity_pending", "equals": 0 },
+    { "sql": "SELECT COUNT(*) FROM edges WHERE type = 'no_match'", "equals": 1 },
+    { "sql": "SELECT status FROM nodes WHERE id = ?", "params": ["@a.id"], "equals": "active" },
+    { "sql": "SELECT status FROM nodes WHERE id = ?", "params": ["@b.id"], "equals": "active" }
+  ]
+}
