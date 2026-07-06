@@ -28,7 +28,8 @@ ratification.
 | entities C — verdicts | decideIdentity: the compound merge + no_match permanence (I9, both halves), merged joins the forgettable set (I8) | DONE (PR #12) |
 | entities D — the peer card | entityContext: the bounded, edge-carrying disambiguation primitive | DONE (PR #13) |
 | standalone | every parent-app reference removed; MIGRATION.md → HISTORY.md | DONE (PR #14) |
-| hardening 2 — cold-review fix batch | 12 findings: no_match transplant (I9), neighborhood surfacing (I2/I3), consent schema enforcement, merge self-loops, forget completeness, I13 byte-exactness, monotonic ULIDs, doc reconciliations | in review (PR #15) |
+| hardening 2 — cold-review fix batch | 12 findings: no_match transplant (I9), neighborhood surfacing (I2/I3), consent schema enforcement, merge self-loops, forget completeness, I13 byte-exactness, monotonic ULIDs, doc reconciliations | DONE (PR #15, merged; tagged v0.2.3) |
+| temporal — design doc (TEMPORAL.md) | bi-temporal edge validity + forget-aware memory history; I15/I16 | in review (PR #16) |
 
 13 of 14 invariants are conformance-pinned (I14, single writer, holds by
 construction). `Store implements StoreContract` is compiler-checked.
