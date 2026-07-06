@@ -42,6 +42,9 @@ export interface DoctorReport {
    * capped, never-surfaced excluded (PLANNING.md). Reports, never acts. */
   readonly dueCandidates: readonly NodeId[];
   readonly queueOldestDays: number | null;
+  /** PRAGMA integrity_check on the record — the health of the FILE itself
+   * (bit-rot, page corruption), distinct from content health. */
+  readonly integrityOk: boolean;
 }
 
 /** The draft contract. Phase 1 ships `class Store implements StoreContract`. */
@@ -64,23 +67,33 @@ export interface StoreContract {
   }): Node;
   /** Fetch by id regardless of status — hosts gate display. */
   getNode(id: NodeId): Node;
-  /** Edit an ACTIVE owner-authored node in place. `when`: undefined =
-   * unchanged, null = clear, string = validated set (I17). */
-  updateNode(id: NodeId, patch: { title?: string; body?: string; props?: Props; when?: string | null }): Node;
+  /** Edit an ACTIVE node in place — the OWNER path (the host is the
+   * authenticator), so it works on consent-gated types too; agent changes
+   * route through proposeEdit/decide. `props` REPLACES wholesale (loud on
+   * purpose); `propsPatch` merges shallowly, a null value removing its key
+   * (RFC 7386 style) — choose one. `when`: undefined = unchanged, null =
+   * clear, string = validated set (I17). */
+  updateNode(
+    id: NodeId,
+    patch: { title?: string; body?: string; props?: Props; propsPatch?: Props; when?: string | null },
+  ): Node;
+  /** The dashboard read: nodes whose `edgeType` edge points AT id, with
+   * the caller's stated statuses (default active) — done steps count when
+   * asked. I2 on traversal; currently-valid edges; asOf time travel. */
+  children(id: NodeId, edgeType: string, opts?: { statuses?: readonly Status[]; asOf?: string }): Node[];
   /** What the node used to say (TEMPORAL.md, I16): pre-mutation snapshots,
    * oldest first, actor- and origin-attributed. Id-gated like getNode;
    * empty after forget — history dies with the tombstone. Read-only. */
   history(id: NodeId): HistorySnapshot[];
-  /** Idempotent on (source, target, type). */
-  /** Idempotent on (source, target, type). Optional world-time validity
-   * window (TEMPORAL.md): declared, never inferred (I15); strict ISO;
-   * system edge types refuse it. */
+  /** Idempotent on (source, target, type) while the edge is OPEN — a
+   * CLOSED triple refuses loudly (a closed fact stays closed). Optional
+   * world-time validity window (TEMPORAL.md): declared, never inferred
+   * (I15); strict ISO; system edge types refuse it. */
   link(source: NodeId, target: NodeId, type?: string, context?: string, validity?: Validity): Edge;
   /** This fact stopped being true: sets valid_until (default now), keeps
    * the row. Refuses system edge types (I15), already-closed edges, and
    * until <= valid_from. */
   closeEdge(id: EdgeId, until?: string): Edge;
-  /** 1-hop active set (I3). */
   /** 1-hop active set (I3, I2 on traversal), currently-valid edges by
    * default; asOf time-travels the world (TEMPORAL.md). */
   neighborhood(id: NodeId, asOf?: string): Node[];
@@ -113,6 +126,10 @@ export interface StoreContract {
    * nodes with when_at in [from, to), when_at ASC. An agenda pull names
    * nothing, so I2 keeps ask and never off the board. */
   agenda(from: string, to: string, opts?: { type?: string; limit?: number }): Node[];
+  /** The episodic-past window: active, always-surfaced nodes by CREATED in
+   * [from, to) — "what happened in March". Day anchors excluded when
+   * untyped; a pure read (no side-effect day creation). */
+  episode(from: string, to: string, opts?: { type?: string; limit?: number }): Node[];
   /** Get-or-create the day node for a UTC date — the public day anchor
    * (PLANNING.md). Scheduling onto it is the host's explicit link. */
   dayAnchor(date: string): Node;
@@ -168,6 +185,13 @@ export interface StoreContract {
   deleteVectors(model?: string): void;
   /** Rebuild index.db from memory.db (I13 — always safe, always exact). */
   rebuildIndex(): void;
+  /** Snapshot the record to a new file via VACUUM INTO — WAL-safe (a
+   * consistent snapshot without blocking writers), compacted, clean.
+   * The target must not exist: backups never overwrite. index.db is not
+   * backed up (disposable, I13); restore = place the file as memory.db in
+   * a fresh dir, open, rebuildIndex(). NEVER raw-copy memory.db while the
+   * store is open — the WAL holds recent writes the copy would lose. */
+  backup(toPath: string): void;
   /** Metadata-only health report — reports, never acts. */
   doctor(now?: Date): DoctorReport;
 }

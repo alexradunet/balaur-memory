@@ -106,7 +106,7 @@ export function forget(ctx: Ctx, id: NodeId): ForgetReport {
     ctx.mem.run("DELETE FROM derivations WHERE artifact = ?", [id]); // if it WAS derived, its lineage goes with it
     ctx.mem.run(
       `UPDATE nodes SET title = '', body = '', props = '{}', origin = '', author = '',
-         status = 'forgotten', review_at = NULL, updated = ? WHERE id = ?`,
+         when_at = NULL, status = 'forgotten', review_at = NULL, updated = ? WHERE id = ?`,
       [ctx.now().toISOString(), id],
     );
     audit(ctx, "owner", "forget.cascade", id, true, {

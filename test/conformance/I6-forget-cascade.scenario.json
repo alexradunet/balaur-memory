@@ -21,6 +21,7 @@
         "title": "Xylograph project",
         "body": "secret xylograph plans",
         "importance": 4,
+        "when": "2026-08-01T15:00:00.000Z",
         "origin": "turn:t1"
       }
     },
@@ -121,6 +122,11 @@
       "sql": "SELECT origin FROM nodes WHERE id = ?",
       "params": ["@fact.id"],
       "equals": ""
+    },
+    {
+      "sql": "SELECT when_at FROM nodes WHERE id = ?",
+      "params": ["@fact.id"],
+      "equals": null
     },
     {
       "sql": "SELECT COUNT(*) FROM edges WHERE source = ? OR target = ?",

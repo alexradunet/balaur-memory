@@ -236,6 +236,12 @@ downstream derivations have moved on); the owner restores deliberately via
   adding a second time axis to nodes would create two competing lifecycle
   vocabularies. Nodes change via supersede chains and history; edges get
   windows. One mechanism each.
+- **Re-opening a closed triple** — an edge's `(source, target, type)` is
+  unique, so "left and later returned" cannot reuse the closed edge; since
+  the perpetuity batch, `link` on a closed triple REFUSES loudly instead
+  of silently returning the stale closed edge. Multi-interval validity
+  (a history of windows per triple) is the honest future design if real
+  use demands it — deferred, stated.
 - **Edge history / edge versioning** — closing + relinking already
   preserves every state; versioning rows-about-rows adds a meta-level with
   no user question behind it.

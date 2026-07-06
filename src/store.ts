@@ -5,7 +5,7 @@
  * surface can no longer drift.
  */
 
-import { rmSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { Conflict, Decision, EditChange, Outcome, Pending, Proposal } from "./consent.ts";
 import * as consent from "./consent.ts";
@@ -115,9 +115,15 @@ export class Store implements StoreContract {
    * (deep-merge is its own footgun; the replacement is loud on purpose). */
   updateNode(
     id: NodeId,
-    patch: { title?: string; body?: string; props?: Props; when?: string | null },
+    patch: { title?: string; body?: string; props?: Props; propsPatch?: Props; when?: string | null },
   ): Node {
     return spine.updateNode(this.guard(), id, patch);
+  }
+
+  /** The dashboard read — a project's steps, a person's mentions, with the
+   * caller's stated statuses so done work counts (review-3 G2). */
+  children(id: NodeId, edgeType: string, opts?: { statuses?: readonly Status[]; asOf?: string }): Node[] {
+    return spine.children(this.guard(), id, edgeType, opts);
   }
 
   /** What this node used to say — pre-mutation snapshots, oldest first
@@ -196,6 +202,11 @@ export class Store implements StoreContract {
   /** The agenda window — ambient recall over time (PLANNING.md, I17/I2). */
   agenda(from: string, to: string, opts?: { type?: string; limit?: number }): Node[] {
     return recallMod.agenda(this.guard(), from, to, opts);
+  }
+
+  /** The episodic-past window — "what happened in March" (review-3 G1). */
+  episode(from: string, to: string, opts?: { type?: string; limit?: number }): Node[] {
+    return recallMod.episode(this.guard(), from, to, opts);
   }
 
   /** Get-or-create the day node for a UTC date (PLANNING.md). */
@@ -294,5 +305,19 @@ export class Store implements StoreContract {
   rebuildIndex(): void {
     const ctx = this.guard();
     rebuildFts(ctx.idx, ctx.mem);
+  }
+
+  // --- backup (SCHEMA.md "Backup and restore"; review-3 G5) ---
+
+  /** Snapshot the record via VACUUM INTO: WAL-safe (reads a consistent
+   * snapshot including un-checkpointed writes, without blocking), and the
+   * output is compacted and forensically clean. Refuses an existing
+   * target — backups never overwrite. Audited content-free. */
+  backup(toPath: string): void {
+    const ctx = this.guard();
+    if (existsSync(toPath))
+      throw new MemoryError("conflict", "backup target already exists — backups never overwrite");
+    ctx.mem.run("VACUUM INTO ?", [toPath]);
+    spine.audit(ctx, "owner", "store.backup", "", true, {});
   }
 }

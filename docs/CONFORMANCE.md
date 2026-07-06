@@ -52,7 +52,8 @@ can reimplement):
   database, so the assertions read the database. `neighborhood` and
   `entityContext` take an optional `asOf` (TEMPORAL.md time travel);
   `history` asserts snapshot replays (length / bodiesInOrder / actions /
-  origins / whens); `agenda` asserts a window's titles in order
+  origins / whens); `agenda` and `episode` assert a window's titles in
+  order; `children` asserts a dashboard read with stated statuses
   (PLANNING.md).
 - `clock` (plus optional per-step `advanceMs`) makes time-dependent
   behavior (recency decay, review_at, staleness) deterministic.
@@ -68,7 +69,7 @@ can reimplement):
 | `I3-neighborhood-active-only` | I3 + I2 on traversal (never/day excluded, ask included) |
 | `golden-I4-audn-gate` | I4 (created / merged_pending / exists_active) |
 | `golden-I5-supersede` | I5 + the I2 composition (superseded leaves ambient recall) |
-| `I6-forget-cascade` | I6 incl. identity_pending completeness, I7 (content-free log probe), I8 |
+| `I6-forget-cascade` | I6 incl. identity_pending + when_at clearing, I7 (content-free log probe), I8 |
 | `I8-fsm-terminality-and-guards` | I8 (guarded targets) |
 | `I9-apple-photos` | I9, both halves: never re-proposed; merge refused either order |
 | `I11-ids-and-timestamps` | I11 |
@@ -80,9 +81,10 @@ can reimplement):
 | `merge-adversarial-edges` | **I9 under merge**: no_match never transplants; self-loops die; chains flatten |
 | `consent-schema-enforcement` | the decide path coerces + validates props against the type schema (I5) |
 | `update-node` | retitle reconciles a now-equal alias; props replace wholesale; audited (I12) |
-| `temporal-siemens-years` | **I15**: declared validity, closeEdge + system-type refusals, asOf time travel |
+| `temporal-siemens-years` | **I15**: declared validity, closeEdge + system-type + closed-triple refusals, asOf time travel |
 | `I16-history-forget` | **I16**: the three capture moments replayed; history dies with the tombstone; audit survives |
 | `planning-tuesday` | **I17**: declared appointments, the gated task flow, agenda windows + I2, reschedule replay, day anchors |
+| `project-dashboard` | children with stated statuses (I2), propsPatch no-clobber, the owner fast path, the episode window |
 
 Sixteen of seventeen invariants are scenario-pinned. The remaining one:
 

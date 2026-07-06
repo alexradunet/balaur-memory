@@ -62,6 +62,8 @@ type Expect =
       whens?: (string | null)[];
     }
   | { agenda: [string, string]; type?: string; titlesInOrder: string[] }
+  | { episode: [string, string]; type?: string; titlesInOrder: string[] }
+  | { children: string; edgeType: string; statuses?: string[]; titles: string[] }
   | { neighborhood: string; titlesEqual: string[]; asOf?: string };
 
 const DIR = join(import.meta.dir);
@@ -316,6 +318,22 @@ for (const file of readdirSync(DIR).filter((f) => f.endsWith(".scenario.json")))
                 .agenda(ex.agenda[0], ex.agenda[1], ex.type !== undefined ? { type: ex.type } : {})
                 .map((n) => n.title);
               expect(got).toEqual(ex.titlesInOrder);
+            } else if ("episode" in ex) {
+              const got = store
+                .episode(ex.episode[0], ex.episode[1], ex.type !== undefined ? { type: ex.type } : {})
+                .map((n) => n.title);
+              expect(got).toEqual(ex.titlesInOrder);
+            } else if ("children" in ex) {
+              const subject = bindings.get(ex.children);
+              if (!subject) throw new Error(`unbound ${ex.children}`);
+              const kids = store.children(
+                subject.id,
+                ex.edgeType,
+                ex.statuses !== undefined
+                  ? { statuses: ex.statuses as Parameters<Store["transition"]>[1][] }
+                  : {},
+              );
+              expect(kids.map((n) => n.title).sort()).toEqual([...ex.titles].sort());
             } else {
               const node = bindings.get(ex.neighborhood);
               if (!node) throw new Error(`unbound ${ex.neighborhood}`);

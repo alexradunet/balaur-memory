@@ -80,6 +80,9 @@ external processes may read concurrently (any external tool mounting the
 file read-only — an analytics notebook, a reporting script, a second app —
 is the designed-for case). The library does not lock across processes —
 hosts that want multi-process writers are out of scope by design.
+Backups go through `backup(toPath)` (`VACUUM INTO` — WAL-safe,
+non-blocking); never raw-copy `memory.db` while a store is open
+(SCHEMA.md "Backup and restore").
 
 ### Errors and outcomes
 

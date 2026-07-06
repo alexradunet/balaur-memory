@@ -135,7 +135,7 @@ any host.
 
 | Type | bornStatus | why |
 |---|---|---|
-| `task` | `proposed` (consent-gated) | The killer feature: an agent can *propose* "Call Ana about the trip" and it waits for the owner. Owner-created tasks still born active via `createNode` (the I1 owner half works on gated types). The cost, honestly: owner **content** edits route through `proposeEdit` → `decide` (two calls a host wraps in one button); `transition`, `touch`, `setSurfacing`, and `when` moves via verdict fields stay direct. |
+| `task` | `proposed` (consent-gated) | The killer feature: an agent can *propose* "Call Ana about the trip" and it waits for the owner. Owner-created tasks born active via `createNode`, and — since the ergonomics batch — **owner edits are fully direct too**: `updateNode` works on gated types (the host is the authenticator; the queue protects the owner from the AGENT, not from themselves). Snooze = one `updateNode({when})`; done = `updateNode({propsPatch:{outcome}})` + `transition`. Agent changes still route through `proposeEdit` → `decide`. (An earlier revision of this doc claimed verdict fields were a direct path — they are not: verdicts require a pending item. Corrected.) |
 | `project` | `active` (owner-authored) | Projects are owner structure, not agent claims. `entityContext(project)` is the dashboard: recent tasks, people, notes — the peer card doing project management. |
 | `event` | `active` | A thing that happens at `when_at`. Stays active after it happens — a past event is a memory. |
 | `reminder` | `proposed` | A task whose whole body is its `when`. Or skip the type and use `task` — hosts choose. |
@@ -145,7 +145,7 @@ any host.
 | Work state | Library state |
 |---|---|
 | open | `active` |
-| done | `transition(id, "archived")` + `props.outcome = "done"` (via the queue for gated types — one wrapped call) |
+| done | `updateNode(id, { propsPatch: { outcome: "done" } })` + `transition(id, "archived")` — direct, two calls, no queue |
 | dropped | `archived` + `props.outcome = "dropped"`; `forget(id)` only when it should truly never resurface |
 | snoozed / rescheduled | update `when` — audited, history-captured |
 | waiting on someone | edge `waiting_on` → person (the peer card shows it from both sides) |

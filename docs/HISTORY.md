@@ -34,7 +34,9 @@ ratification.
 | temporal B — history | the three capture moments, history(id), the forget-cascade amendment (I16) | DONE (PR #18, merged) |
 | planning — design doc (PLANNING.md) | when_at, agenda, dueCandidates, dayAnchor; tasks as memories; I17 | DONE (PR #19, merged) |
 | planning A — the appointment | schema v4, when through the write paths, agenda, the due lens, dayAnchor (I17) | DONE (PR #20, merged; tagged v0.4.0) |
-| field survey (FIELD.md) | the 2026 landscape, where we lead, the steal ledger, positioning | in review (PR #21) |
+| field survey (FIELD.md) | the 2026 landscape, where we lead, the steal ledger, positioning | DONE (PR #21, merged) |
+| hardening 3 — the perpetuity batch | forget clears when_at (I6), closed-triple loud refusal, the future-file guard, day reserved, backup() via VACUUM INTO, doctor integrityOk | DONE (PR #22, merged) |
+| ergonomics — the life-layer batch | propsPatch, episode window, children dashboard read, the owner fast path on gated types | in review (PR #23) |
 
 13 of 14 invariants are conformance-pinned (I14, single writer, holds by
 construction). `Store implements StoreContract` is compiler-checked.

@@ -26,6 +26,14 @@
     {
       "op": "link",
       "source": "@ana.id",
+      "target": "@siemens.id",
+      "type": "works_at",
+      "validity": { "from": "2026-06-01" },
+      "expectError": "conflict"
+    },
+    {
+      "op": "link",
+      "source": "@ana.id",
       "target": "@bitdef.id",
       "type": "works_at",
       "validity": { "from": "2026-02-01" }

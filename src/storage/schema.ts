@@ -4,6 +4,7 @@
  * Never edit an applied migration; append and bump SCHEMA_VERSION.
  */
 
+import { MemoryError } from "../types.ts";
 import type { SqlDb } from "./adapter.ts";
 import { ulid } from "./ulid.ts";
 
@@ -173,6 +174,17 @@ export function migrateMemoryDb(db: SqlDb, now: () => Date): void {
     return;
   }
   const v = Number(version.value);
+  // The forward-compat guard (review-3 A3): a file from the FUTURE — a
+  // newer schema than this build knows — must refuse loudly. Over decades
+  // a precious file WILL meet an older binary (a rollback, a stale backup
+  // tool, a second machine); running old code against an unknown schema is
+  // the one silent way to corrupt the record. Upgrade the library, never
+  // downgrade the file.
+  if (Number.isNaN(v) || v > SCHEMA_VERSION)
+    throw new MemoryError(
+      "conflict",
+      `memory.db is schema v${version.value}; this build supports up to v${SCHEMA_VERSION} — upgrade the library, never downgrade the file`,
+    );
   if (v < 2) {
     db.exec(V2_DDL);
     db.run("UPDATE meta SET value = '2' WHERE key = 'schema_version'");

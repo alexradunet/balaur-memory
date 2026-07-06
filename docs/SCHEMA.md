@@ -223,9 +223,10 @@ nodes.
   A mid-sequence failure stops and surfaces; no silent rollback of audited
   steps.
 - **I6 — Tombstone semantics.** `forget` sets `status='forgotten'`,
-  `title=''`, `body=''`, `props='{}'`, `origin=''`, `author=''`; clears
-  `pending_edits`, (v2) the node's `aliases` and its open
-  `identity_pending` questions, and (v3) its `memory_history` rows;
+  `title=''`, `body=''`, `props='{}'`, `origin=''`, `author=''`, and (v4)
+  `when_at=NULL` — a scheduled moment is content, and a tombstone keeps no
+  appointment; clears `pending_edits`, (v2) the node's `aliases` and its
+  open `identity_pending` questions, and (v3) its `memory_history` rows;
   deletes the node's edges; scrubs it from `nodes_fts` and `vectors`;
   marks `derivations` rows with it as `source` stale; lists merged husks
   chained into it as `husk:<id>` in the report's `needsOwner` (computed
@@ -283,6 +284,27 @@ nodes.
   half-open window (I2: an agenda pull names nothing); the doctor's
   `dueCandidates` lens excludes `never`-surfaced nodes (the F8 rule).
   History snapshots carry the pre-change `when_at` (I16 unchanged).
+
+## Backup and restore (the file's own survival)
+
+- **The one sanctioned backup is `backup(toPath)`** — `VACUUM INTO` under
+  the hood: it reads a consistent snapshot (including writes still in the
+  WAL) with only a read lock, never blocks the writer, and produces a
+  compacted, forensically clean copy. The target must not exist — backups
+  never overwrite.
+- **NEVER raw-copy `memory.db` while a store is open.** WAL mode keeps
+  recent writes in `memory.db-wal`; copying the main file alone silently
+  loses them. A raw copy is safe only after `close()`.
+- **Restore** = place the backup file as `memory.db` in a fresh directory,
+  open, `rebuildIndex()`. `index.db` is never backed up — it is disposable
+  by contract (I13).
+- **Verify backups by opening them** — an untested backup is a hope, not a
+  backup. `doctor().integrityOk` runs `PRAGMA integrity_check` on the live
+  record; run it on a restored copy too.
+- **Files from the future refuse to open.** A `memory.db` whose
+  `schema_version` exceeds what the build knows throws on open — upgrade
+  the library, never downgrade the file. (Older files upgrade in place,
+  in order, as always.)
 
 ## Deliberate schema choices
 
