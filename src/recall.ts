@@ -268,6 +268,40 @@ export function search(ctx: Ctx, terms: readonly string[], limit = 10): Node[] {
 const DEFAULT_AGENDA_LIMIT = 100;
 
 /**
+ * The episodic-past window (review-3 G1): active, always-surfaced nodes by
+ * CREATED in [from, to) — what recall is to text and agenda is to the
+ * scheduled future, episode is to the lived past ("what happened in
+ * March"). Day anchors are excluded when untyped (plumbing; an explicit
+ * type:"day" reaches them — the recall convention). A pure read: no
+ * side-effect day creation, ever.
+ */
+export function episode(
+  ctx: Ctx,
+  from: string,
+  to: string,
+  opts: { type?: string; limit?: number } = {},
+): Node[] {
+  const lo = parseStrictIso(from, "from");
+  const hi = parseStrictIso(to, "to");
+  if (hi <= lo) throw new MemoryError("props_invalid", "to must be after from");
+  const limit = opts.limit ?? DEFAULT_AGENDA_LIMIT;
+  if (!Number.isInteger(limit) || limit < 1)
+    throw new MemoryError("props_invalid", "limit must be a positive integer");
+  const typed = opts.type !== undefined;
+  const rows = ctx.mem.query<RowShape & Record<string, string | number | null>>(
+    `SELECT id, type, title, body, status, surfacing, importance, props, origin, author,
+            use_count, last_used, review_at, when_at, created, updated
+     FROM nodes
+     WHERE created >= ? AND created < ?
+       AND status = 'active' AND surfacing = 'always'
+       ${typed ? "AND type = ?" : "AND type != 'day'"}
+     ORDER BY created ASC, id ASC LIMIT ?`,
+    typed ? [lo, hi, opts.type as string, limit] : [lo, hi, limit],
+  );
+  return rows.map(rowShapeToNode);
+}
+
+/**
  * Ambient recall over time (PLANNING.md): active nodes with a scheduled
  * moment in [from, to), ordered when_at ASC then id ASC. I2 applies
  * exactly as in recall — an agenda pull literally names nothing, so only

@@ -321,6 +321,45 @@ export function dayAnchor(ctx: Ctx, date: string): Node {
   return ensureDayNode(ctx, new Date(Date.parse(iso)));
 }
 
+/** The dashboard read (review-3 G2): the nodes whose `edgeType` edge
+ * points AT `id` — a project's steps via part_of, a person's mentions.
+ * Statuses are the caller's STATED intent (default ACTIVE, like every
+ * traversal); pass ["active","archived"] so done work counts toward
+ * progress. never-surfaced excluded (I2 on traversal), day plumbing
+ * excluded, currently-valid edges by default with asOf time travel.
+ * Ordered created ASC then id ASC — hosts sort by their own props
+ * (e.g. seq) when order is domain-defined. */
+export function children(
+  ctx: Ctx,
+  id: NodeId,
+  edgeType: string,
+  opts: { statuses?: readonly Status[]; asOf?: string } = {},
+): Node[] {
+  const type = edgeType.trim();
+  if (type === "") throw new MemoryError("props_invalid", "edgeType is required");
+  const statuses = opts.statuses ?? (["active"] as const);
+  if (statuses.length === 0) throw new MemoryError("props_invalid", "statuses cannot be empty");
+  const valid = new Set<string>(Object.keys(TRANSITIONS));
+  for (const s of statuses) {
+    if (!valid.has(s)) throw new MemoryError("props_invalid", `unknown status ${JSON.stringify(s)}`);
+  }
+  const t = opts.asOf !== undefined ? parseStrictIso(opts.asOf, "asOf") : ctx.now().toISOString();
+  const placeholders = statuses.map(() => "?").join(", ");
+  const rows = ctx.mem.query<NodeRow>(
+    `SELECT DISTINCT ${NODE_COLS.split(", ")
+      .map((c) => `n.${c}`)
+      .join(", ")}
+     FROM nodes n
+     JOIN edges e ON e.source = n.id AND e.target = ? AND e.type = ?
+     WHERE n.status IN (${placeholders}) AND n.surfacing != 'never' AND n.type != 'day'
+       AND (e.valid_from IS NULL OR e.valid_from <= ?)
+       AND (e.valid_until IS NULL OR e.valid_until > ?)
+     ORDER BY n.created ASC, n.id ASC`,
+    [id, type, ...statuses, t, t],
+  );
+  return rows.map(rowToNode);
+}
+
 // --- reads ---
 
 export function mustGet(ctx: Ctx, id: NodeId): Node {
@@ -357,24 +396,41 @@ export function neighborhood(ctx: Ctx, id: NodeId, asOf?: string): Node[] {
 export function updateNode(
   ctx: Ctx,
   id: NodeId,
-  patch: { title?: string; body?: string; props?: Props; when?: string | null },
+  patch: { title?: string; body?: string; props?: Props; propsPatch?: Props; when?: string | null },
 ): Node {
   const node = mustGet(ctx, id);
   const t = typeRow(ctx, node.type);
-  if (t.born_status === "proposed")
-    throw new MemoryError(
-      "invalid_transition",
-      `type ${JSON.stringify(node.type)} is consent-gated — changes go through the consent queue`,
-    );
+  // The host is the authenticator (I1's own doctrine): updateNode IS the
+  // owner path, so it works on consent-gated types too — the queue
+  // protects the owner from the AGENT, not from themselves. Agent changes
+  // still route through proposeEdit/decide. The old refusal contradicted
+  // the createNode symmetry and taxed every daily owner act (review-3 G7).
   if (node.status !== "active")
     throw new MemoryError("invalid_transition", `node ${id} is not active (status=${node.status})`);
   const title = patch.title !== undefined ? patch.title.trim() : node.title;
   if (title === "") throw new MemoryError("props_invalid", "title cannot be cleared");
+  if (patch.props !== undefined && patch.propsPatch !== undefined)
+    throw new MemoryError("props_invalid", "choose props (whole replace) or propsPatch (merge) — not both");
   const nextBody = patch.body ?? node.body;
+  // propsPatch: RFC 7386-style shallow merge — keys merge in, a null value
+  // REMOVES its key (review-3 G3: incremental fields like outcome/seq no
+  // longer risk clobbering their siblings). Whole-replace stays available
+  // and loud via `props`.
+  let mergedProps: Props | undefined;
+  if (patch.propsPatch !== undefined) {
+    const merged: Record<string, unknown> = { ...node.props };
+    for (const [key, value] of Object.entries(patch.propsPatch)) {
+      if (value === null) delete merged[key];
+      else merged[key] = value;
+    }
+    mergedProps = merged;
+  }
   const nextProps =
     patch.props !== undefined
       ? applyTemplateAndValidate(t, nextBody, patch.props).props
-      : (node.props as Record<string, unknown>);
+      : mergedProps !== undefined
+        ? applyTemplateAndValidate(t, nextBody, mergedProps).props
+        : (node.props as Record<string, unknown>);
   // when: undefined = unchanged; null = clear; string = validated set (I17).
   const nextWhen =
     patch.when === undefined ? node.when : patch.when === null ? null : parseStrictIso(patch.when, "when");

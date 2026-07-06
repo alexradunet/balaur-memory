@@ -72,10 +72,12 @@ describe("spine: update", () => {
     expect(u.updated > u.created).toBe(true);
   });
 
-  test("refuses consent-gated types and non-active nodes", () => {
+  test("owner edits are direct even on consent-gated types; non-active refused (G7)", () => {
     store.registerType({ name: "memory", bornStatus: "proposed" });
     const m = store.createNode({ type: "memory", title: "Owner-stated fact", origin: "t" }); // owner path: active
-    expect(() => store.updateNode(m.id, { title: "x" })).toThrow("consent-gated");
+    const u = store.updateNode(m.id, { title: "Owner-corrected fact" }); // the host authenticates the owner
+    expect(u.title).toBe("Owner-corrected fact");
+    expect(store.history(m.id)).toHaveLength(1); // still captured (I16)
     const n = store.createNode({ type: "note", title: "Old", origin: "t" });
     store.transition(n.id, "archived");
     expect(() => store.updateNode(n.id, { title: "x" })).toThrow("not active");

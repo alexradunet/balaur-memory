@@ -115,9 +115,15 @@ export class Store implements StoreContract {
    * (deep-merge is its own footgun; the replacement is loud on purpose). */
   updateNode(
     id: NodeId,
-    patch: { title?: string; body?: string; props?: Props; when?: string | null },
+    patch: { title?: string; body?: string; props?: Props; propsPatch?: Props; when?: string | null },
   ): Node {
     return spine.updateNode(this.guard(), id, patch);
+  }
+
+  /** The dashboard read — a project's steps, a person's mentions, with the
+   * caller's stated statuses so done work counts (review-3 G2). */
+  children(id: NodeId, edgeType: string, opts?: { statuses?: readonly Status[]; asOf?: string }): Node[] {
+    return spine.children(this.guard(), id, edgeType, opts);
   }
 
   /** What this node used to say — pre-mutation snapshots, oldest first
@@ -196,6 +202,11 @@ export class Store implements StoreContract {
   /** The agenda window — ambient recall over time (PLANNING.md, I17/I2). */
   agenda(from: string, to: string, opts?: { type?: string; limit?: number }): Node[] {
     return recallMod.agenda(this.guard(), from, to, opts);
+  }
+
+  /** The episodic-past window — "what happened in March" (review-3 G1). */
+  episode(from: string, to: string, opts?: { type?: string; limit?: number }): Node[] {
+    return recallMod.episode(this.guard(), from, to, opts);
   }
 
   /** Get-or-create the day node for a UTC date (PLANNING.md). */

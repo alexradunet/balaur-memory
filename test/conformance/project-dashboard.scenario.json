@@ -1,0 +1,59 @@
+{
+  "name": "the project dashboard: children with stated statuses, propsPatch, the owner fast path, the episodic window",
+  "invariants": ["I2", "I12"],
+  "clock": "2026-07-05T12:00:00.000Z",
+  "steps": [
+    { "op": "registerType", "name": "project", "bornStatus": "active" },
+    { "op": "registerType", "name": "task", "bornStatus": "proposed" },
+    { "op": "createNode", "as": "proj", "input": { "type": "project", "title": "Trip 2026", "origin": "o" } },
+    {
+      "op": "createNode",
+      "as": "t1",
+      "input": { "type": "task", "title": "Book hotel", "props": { "priority": "high" }, "origin": "o" }
+    },
+    { "op": "link", "source": "@t1.id", "target": "@proj.id", "type": "part_of" },
+    { "op": "createNode", "as": "t2", "input": { "type": "task", "title": "Pack bags", "origin": "o" } },
+    { "op": "link", "source": "@t2.id", "target": "@proj.id", "type": "part_of" },
+    { "op": "createNode", "as": "t3", "input": { "type": "task", "title": "Get visa", "origin": "o" } },
+    { "op": "link", "source": "@t3.id", "target": "@proj.id", "type": "part_of" },
+    { "op": "updateNode", "id": "@t1.id", "patch": { "propsPatch": { "outcome": "done" } } },
+    { "op": "transition", "id": "@t1.id", "to": "archived" },
+    { "op": "updateNode", "id": "@t2.id", "patch": { "when": "2026-07-09T10:00:00.000Z" } },
+    {
+      "op": "updateNode",
+      "id": "@t2.id",
+      "patch": { "props": { "a": "1" }, "propsPatch": { "b": "2" } },
+      "expectError": "props_invalid"
+    }
+  ],
+  "expect": [
+    { "children": "proj", "edgeType": "part_of", "titles": ["Pack bags", "Get visa"] },
+    {
+      "children": "proj",
+      "edgeType": "part_of",
+      "statuses": ["active", "archived"],
+      "titles": ["Book hotel", "Pack bags", "Get visa"]
+    },
+    {
+      "sql": "SELECT json_extract(props, '$.outcome') FROM nodes WHERE id = ?",
+      "params": ["@t1.id"],
+      "equals": "done"
+    },
+    {
+      "sql": "SELECT json_extract(props, '$.priority') FROM nodes WHERE id = ?",
+      "params": ["@t1.id"],
+      "equals": "high"
+    },
+    {
+      "sql": "SELECT when_at FROM nodes WHERE id = ?",
+      "params": ["@t2.id"],
+      "equals": "2026-07-09T10:00:00.000Z"
+    },
+    {
+      "episode": ["2026-07-05", "2026-07-06"],
+      "titlesInOrder": ["Trip 2026", "Pack bags", "Get visa"]
+    },
+    { "history": "t1", "length": 1, "actions": ["node.update"] },
+    { "history": "t2", "length": 1, "actions": ["node.update"] }
+  ]
+}

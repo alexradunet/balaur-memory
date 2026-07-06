@@ -52,7 +52,8 @@ can reimplement):
   database, so the assertions read the database. `neighborhood` and
   `entityContext` take an optional `asOf` (TEMPORAL.md time travel);
   `history` asserts snapshot replays (length / bodiesInOrder / actions /
-  origins / whens); `agenda` asserts a window's titles in order
+  origins / whens); `agenda` and `episode` assert a window's titles in
+  order; `children` asserts a dashboard read with stated statuses
   (PLANNING.md).
 - `clock` (plus optional per-step `advanceMs`) makes time-dependent
   behavior (recency decay, review_at, staleness) deterministic.
@@ -83,6 +84,7 @@ can reimplement):
 | `temporal-siemens-years` | **I15**: declared validity, closeEdge + system-type + closed-triple refusals, asOf time travel |
 | `I16-history-forget` | **I16**: the three capture moments replayed; history dies with the tombstone; audit survives |
 | `planning-tuesday` | **I17**: declared appointments, the gated task flow, agenda windows + I2, reschedule replay, day anchors |
+| `project-dashboard` | children with stated statuses (I2), propsPatch no-clobber, the owner fast path, the episode window |
 
 Sixteen of seventeen invariants are scenario-pinned. The remaining one:
 
