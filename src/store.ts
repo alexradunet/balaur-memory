@@ -1,14 +1,15 @@
 /**
- * The Store façade — the single class in the library (CODING.md). Phase 1
- * exposes the spine surface; consent (Phase 3), recall (Phase 2), lifecycle
- * verbs (Phase 4), lineage and doctor (Phase 5) complete StoreContract.
- * Until then Store deliberately does NOT declare `implements StoreContract`.
+ * The Store façade — the single class in the library (CODING.md), and a
+ * literal implementation of the contract: `implements StoreContract` is
+ * checked by the compiler, so the draft in contract.ts and the shipped
+ * surface can no longer drift.
  */
 
 import { join } from "node:path";
 import type { Conflict, Decision, EditChange, Outcome, Pending, Proposal } from "./consent.ts";
 import * as consent from "./consent.ts";
-import type { RecallOptions } from "./contract.ts";
+import type { DoctorReport, RecallOptions, StoreContract } from "./contract.ts";
+import { doctor as doctorFn } from "./doctor.ts";
 import { rebuildFts } from "./indexdb/fts.ts";
 import * as vectors from "./indexdb/vectors.ts";
 import type { ForgetReport } from "./lifecycle.ts";
@@ -38,7 +39,7 @@ export interface StoreOptions {
   readonly openDb?: OpenDb;
 }
 
-export class Store {
+export class Store implements StoreContract {
   private readonly ctx: spine.Ctx;
   private open_ = true;
 
@@ -189,6 +190,15 @@ export class Store {
   /** Derived artifacts whose sources were forgotten or changed. */
   staleDerivations(): string[] {
     return lineage.staleDerivations(this.guard());
+  }
+
+  // --- self-measurement (Phase 5 scope) ---
+
+  /** Metadata-only health report — candidates for the owner's review;
+   * reports, never acts. Defaults to the store's injected clock. */
+  doctor(now?: Date): DoctorReport {
+    const ctx = this.guard();
+    return doctorFn(ctx, now ?? ctx.now());
   }
 
   // --- index maintenance (I13) ---
