@@ -268,8 +268,9 @@ nodes.
 - **I16 — History dies with the tombstone.** (v3) `memory_history` rows
   are content: `forget(id)` removes every row for the node in the cascade
   transaction. Audit rows, being content-free, survive. History is
-  append-only otherwise — no other verb may delete it. (Producers land
-  with temporal Phase B.)
+  append-only otherwise — no other verb may delete it. Snapshots are
+  taken at exactly three owner-authority moments: `updateNode`,
+  `approve_edited`, and parked-edit application (TEMPORAL.md).
 
 ## Deliberate schema choices
 

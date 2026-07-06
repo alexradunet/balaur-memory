@@ -1,10 +1,11 @@
 # TEMPORAL.md — time as truth: edge validity + memory history (design)
 
-- **Status:** RATIFIED — the owner confirmed all five open questions
+- **Status:** ARC COMPLETE — the owner confirmed all five open questions
   (primitive `closeEdge` only; no auto-close on supersede; the three
   capture moments; `asOf` defaults to the currently-valid world; no undo
-  verb). **Phase A (validity) shipped in PR #17** with schema v3 and
-  v0.3.0. Phase B (history) remains.
+  verb). Phase A (validity, PR #17, schema v3 + v0.3.0); Phase B
+  (history, PR #18, v0.3.1). Both invariants producer-backed: I15 and
+  I16 are conformance-pinned.
 - **Ships as:** **schema_version 3** and **v0.3.0**. No API-breaking
   changes: two new columns, one new table, two new verbs, optional
   parameters on three existing reads.

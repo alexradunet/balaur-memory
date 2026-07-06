@@ -98,6 +98,10 @@ export function forget(ctx: Ctx, id: NodeId): ForgetReport {
     // Open identity questions about a tombstone are moot — the cascade
     // clears every pending table it touches, this one included (review-2 F5).
     ctx.mem.run("DELETE FROM identity_pending WHERE a = ? OR b = ?", [id, id]);
+    // History dies with the tombstone (I16): snapshots are content, and a
+    // history table that survives forgetting would make forget a lie. The
+    // content-free audit rows survive — that split is the design.
+    ctx.mem.run("DELETE FROM memory_history WHERE node_id = ?", [id]);
     flaggedStale = flagStaleBySource(ctx, id);
     ctx.mem.run("DELETE FROM derivations WHERE artifact = ?", [id]); // if it WAS derived, its lineage goes with it
     ctx.mem.run(

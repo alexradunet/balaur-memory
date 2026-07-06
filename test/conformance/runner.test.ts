@@ -53,6 +53,7 @@ type Expect =
       peerTitlesInOrder?: string[];
       peerVia?: string[][];
     }
+  | { history: string; length?: number; bodiesInOrder?: string[]; actions?: string[]; origins?: string[] }
   | { neighborhood: string; titlesEqual: string[]; asOf?: string };
 
 const DIR = join(import.meta.dir);
@@ -291,6 +292,14 @@ for (const file of readdirSync(DIR).filter((f) => f.endsWith(".scenario.json")))
                 expect(card.peers.map((p) => [...new Set(p.edges.map((e) => e.type))].sort())).toEqual(
                   ex.peerVia,
                 );
+            } else if ("history" in ex) {
+              const subject = bindings.get(ex.history);
+              if (!subject) throw new Error(`unbound ${ex.history}`);
+              const snaps = store.history(subject.id);
+              if (ex.length !== undefined) expect(snaps).toHaveLength(ex.length);
+              if (ex.bodiesInOrder !== undefined) expect(snaps.map((s) => s.body)).toEqual(ex.bodiesInOrder);
+              if (ex.actions !== undefined) expect(snaps.map((s) => s.action)).toEqual(ex.actions);
+              if (ex.origins !== undefined) expect(snaps.map((s) => s.origin)).toEqual(ex.origins);
             } else {
               const node = bindings.get(ex.neighborhood);
               if (!node) throw new Error(`unbound ${ex.neighborhood}`);
